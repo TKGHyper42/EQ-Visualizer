@@ -91,6 +91,18 @@ internal static class SmokeTest
             }
             settings.DialogResult = DialogResult.OK; settings.Close();
             if (System.Text.Json.JsonSerializer.Serialize(values) != before) throw new InvalidOperationException("Settings changed without an edit.");
+            Application.SetColorMode(SystemColorMode.Classic);
+            Ui.ApplyTheme(InterfaceTheme.Pearl, 0);
+            using (var light = new SettingsForm(new Settings { InterfaceTheme = InterfaceTheme.Pearl }))
+            {
+                light.Show(); light.SelectSection(1); PumpAnimations();
+                using var lightImage = new Bitmap(light.Width, light.Height);
+                light.DrawToBitmap(lightImage, new Rectangle(Point.Empty, lightImage.Size));
+                lightImage.Save(Path.Combine(directory, "settings-light.png"), System.Drawing.Imaging.ImageFormat.Png);
+                light.Close();
+            }
+            Application.SetColorMode(SystemColorMode.Dark);
+            Ui.ApplyTheme(InterfaceTheme.Carbon, 0);
             using var welcome = new WelcomeForm(new Settings());
             welcome.Show(); PumpAnimations();
             using var welcomeImage = new Bitmap(welcome.Width, welcome.Height);

@@ -12,17 +12,23 @@ internal sealed class SettingsForm : ModernForm
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
     private readonly UiSelect idleMode = Choices("Ocultar wallpaper", "Reloj", "Imagen personalizada", "Imagen y reloj");
+    private readonly UiSelect interfaceTheme = Choices("Carbón · oscuro", "Grafito · oscuro", "Ciruela · oscuro", "Bosque · oscuro",
+        "Perla · claro", "Arena · claro", "Bruma · claro", "Rosa · claro");
     private readonly TextBox idlePath = new() { BorderStyle = BorderStyle.None, BackColor = Ui.Elevated, ForeColor = Ui.Text, ReadOnly = true };
     private readonly CheckBox previewIdle = new UiToggle { Text = "Ver sin música", AutoSize = false, Width = 170 };
     private readonly UiSelect toggleKey = KeysBox(), effectsKey = KeysBox();
     private readonly SettingsPreview preview;
+    private readonly ThemeSample themeSample = new();
     private Color selectedAccent;
+    private bool customAccent;
     private readonly UiButton accentButton = new() { Text = "Elegir color…", Width = 175 };
 
     public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes")
     {
         this.settings = settings;
-        selectedAccent = Color.FromArgb(settings.InterfaceAccent);
+        customAccent = settings.InterfaceAccent != 0;
+        selectedAccent = customAccent ? InterfacePalettes.EnsureAccent(Color.FromArgb(settings.InterfaceAccent), InterfacePalettes.For(settings.InterfaceTheme).Surface)
+            : InterfacePalettes.For(settings.InterfaceTheme).Accent;
         preview = new SettingsPreview(artwork);
         WindowOpacity = settings.InterfaceOpacity / 100d;
         ClientSize = new Size(940, 720); MinimumSize = new Size(820, 650);
@@ -80,15 +86,28 @@ internal sealed class SettingsForm : ModernForm
         };
         idleFile.Controls.Add(idlePath); idleFile.Controls.Add(browse);
         Row(appearance, "Tu imagen", idleFile);
-        Row(appearance, "Color de la interfaz", accentButton);
+        Hint(appearance, "El modo adaptativo sigue las posiciones que expone el Explorador. Si no están disponibles, Estado lo indica; puedes elegir oscurecer la imagen completa.");
+
+        var interfacePage = Page("Interfaz", "Colores que se sienten tuyos.");
+        interfaceTheme.SelectedIndex = (int)settings.InterfaceTheme;
+        Row(interfacePage, "Tema", interfaceTheme);
+        Row(interfacePage, "Color de acento", accentButton);
         accentButton.Click += (_, _) =>
         {
             using var picker = new ColorDialog { Color = selectedAccent, FullOpen = true, AllowFullOpen = true };
-            if (picker.ShowDialog(this) == DialogResult.OK) { selectedAccent = picker.Color; UpdatePreview(); }
+            if (picker.ShowDialog(this) == DialogResult.OK)
+            {
+                selectedAccent = InterfacePalettes.EnsureAccent(picker.Color,
+                    InterfacePalettes.For((InterfaceTheme)interfaceTheme.SelectedIndex).Surface);
+                customAccent = true; UpdatePreview();
+            }
         };
-        Number(appearance, "Transparencia de la ventana (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
-        Hint(appearance, "El modo adaptativo sigue las posiciones que expone el Explorador. Si no están disponibles, Estado lo indica; puedes elegir oscurecer la imagen completa.");
-        Hint(appearance, "El color se usa en botones y detalles de la interfaz. La transparencia afecta solo a esta ventana de ajustes; 100 % es opaca.");
+        Number(interfacePage, "Opacidad de Ajustes (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
+        var sampleRow = interfacePage.RowCount++; interfacePage.RowStyles.Add(new(SizeType.Absolute, 108));
+        themeSample.Dock = DockStyle.Fill; themeSample.Margin = new Padding(0, 6, 0, 6);
+        interfacePage.Controls.Add(themeSample, 0, sampleRow); interfacePage.SetColumnSpan(themeSample, 2);
+        Hint(interfacePage, "Todos los temas tienen texto y botones de alto contraste. Al elegir otro tema se recupera su acento original; también puedes escoger uno propio.");
+        Hint(interfacePage, "La opacidad afecta solo a la ventana de Ajustes. 100 % es completamente opaca.");
 
         var audio = Page("Audio", "Dale forma a lo que escuchas.");
         capture.Checked = settings.CaptureAudio; Row(audio, "Captura", capture);
@@ -96,7 +115,7 @@ internal sealed class SettingsForm : ModernForm
         Number(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
         Number(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
         Number(audio, "Grosor de barras (%)", "thickness", settings.BarThickness * 100, 50, 300, 10);
-        Hint(audio, "Elige el reproductor y la salida desde el menú de la bandeja. La sesión proporciona título y portada; la captura analiza toda la mezcla de la salida elegida, incluidos sonidos de otras apps. El aislamiento por proceso aún no está implementado.");
+        Hint(audio, "En la bandeja, Reproductor elige metadatos y Capturar sonido de elige mezcla o proceso aislado. El aislamiento requiere Windows build 20348+ y elegir el proceso de audio correcto; en Windows 10 habitual queda disponible la mezcla completa.");
         Hint(audio, "El audio solo se analiza en memoria: no se reproduce, graba ni transmite. Sin historial musical, telemetría ni cuentas de Spotify.");
 
         var motion = Page("Movimiento", "Un poco de profundidad. A tu ritmo.");
@@ -126,6 +145,11 @@ internal sealed class SettingsForm : ModernForm
         previewIdle.CheckedChanged += (_, _) => UpdatePreview();
         idleMode.SelectedIndexChanged += (_, _) => UpdatePreview();
         idlePath.TextChanged += (_, _) => UpdatePreview();
+        interfaceTheme.SelectedIndexChanged += (_, _) =>
+        {
+            selectedAccent = InterfacePalettes.For((InterfaceTheme)interfaceTheme.SelectedIndex).Accent;
+            customAccent = false; UpdatePreview();
+        };
         preview.Dock = DockStyle.Fill;
         previewLayout.Controls.Add(preview, 0, 0);
         previewLayout.Controls.Add(previewBar, 0, 1);
@@ -160,12 +184,13 @@ internal sealed class SettingsForm : ModernForm
     {
         if (!numbers.ContainsKey("layers")) return;
         float N(string name) => (float)numbers[name].Value;
+        themeSample.SetPalette((InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex), selectedAccent);
         preview.SetOptions(new PreviewOptions((VisualizerMode)Math.Max(0, mode.SelectedIndex),
             N("size") / 100, N("x") / 100, N("y") / 100, N("margin") / 100,
             N("strength") / 100, N("sensitivity"), N("thickness") / 100,
             (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
             (ContrastMode)Math.Max(0, contrast.SelectedIndex), (IdleMode)Math.Max(0, idleMode.SelectedIndex),
-            previewIdle.Checked, idlePath.Text));
+            previewIdle.Checked, idlePath.Text, (InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex)));
         WindowOpacity = N("opacity") / 100d;
         if (IsHandleCreated) Opacity = WindowOpacity;
     }
@@ -224,7 +249,9 @@ internal sealed class SettingsForm : ModernForm
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
             settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
             settings.BackgroundBlur = N("blur");
-            settings.InterfaceAccent = selectedAccent.ToArgb(); settings.InterfaceOpacity = (int)N("opacity");
+            settings.InterfaceTheme = (InterfaceTheme)interfaceTheme.SelectedIndex;
+            settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
+            settings.InterfaceOpacity = (int)N("opacity");
             settings.NoSessionMode = (IdleMode)idleMode.SelectedIndex;
             settings.NoSessionImagePath = string.IsNullOrWhiteSpace(idlePath.Text) ? null : idlePath.Text;
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;

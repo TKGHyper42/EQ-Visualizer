@@ -7,7 +7,7 @@ namespace EQVisualizer;
 internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverSize, float X, float Y,
     float Margin, float Strength, float Sensitivity, float Thickness, int Layers, bool Tunnel,
     bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
-    bool PreviewIdle, string? IdlePath);
+    bool PreviewIdle, string? IdlePath, InterfaceTheme Theme);
 
 // Uses the same scene geometry as the wallpaper. The spectrum is deliberately simulated.
 internal sealed class SettingsPreview : Control
@@ -67,19 +67,20 @@ internal sealed class SettingsPreview : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
+        var palette = InterfacePalettes.For(options.Theme);
         g.Clear(Parent?.BackColor ?? Ui.Background);
         var frame = new Rectangle(1, 1, Width - 3, Height - 3);
         if (frame.Width < 20 || frame.Height < 60) return;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         using (var border = Ui.Round(frame, 15))
-        using (var fill = new SolidBrush(Ui.Surface))
-        using (var edge = new Pen(Ui.Line)) { g.FillPath(fill, border); g.DrawPath(edge, border); }
+        using (var fill = new SolidBrush(palette.Surface))
+        using (var edge = new Pen(palette.Line)) { g.FillPath(fill, border); g.DrawPath(edge, border); }
         using (var dot = new SolidBrush(options.Accent)) g.FillEllipse(dot, 17, 15, 8, 8);
-        TextRenderer.DrawText(g, "VISTA PREVIA", Ui.Font(8.5f, FontStyle.Bold), new Rectangle(31, 10, 160, 20), Ui.Text);
+        TextRenderer.DrawText(g, "VISTA PREVIA", Ui.Font(8.5f, FontStyle.Bold), new Rectangle(31, 10, 160, 20), palette.Text);
         string detail = options.PreviewIdle ? "Modo sin música · sin audio" :
             sampleArtwork ? "Portada de muestra · señal simulada" : "Portada actual · señal simulada";
         TextRenderer.DrawText(g, detail,
-            Ui.Font(8), new Rectangle(190, 10, Math.Max(10, Width - 205), 20), Ui.Muted,
+            Ui.Font(8), new Rectangle(190, 10, Math.Max(10, Width - 205), 20), palette.Muted,
             TextFormatFlags.Right | TextFormatFlags.EndEllipsis);
         var canvas = new Rectangle(12, 37, Width - 26, Height - 50);
         if (canvas.Width < 10 || canvas.Height < 10) return;

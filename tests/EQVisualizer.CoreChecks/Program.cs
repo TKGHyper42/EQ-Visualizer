@@ -70,6 +70,19 @@ Check(scene.Vertices.ToArray().Count(v=>v.Textured==1)==6 && scene.Vertices.ToAr
 scene.BuildIdle(1280,720,.36f,new(.5f,.5f),true,true);
 Check(scene.Vertices.ToArray().Count(v=>v.Textured==1)==6 && scene.Vertices.ToArray().Count(v=>v.Textured==2)==6,"Combined fallback renders image and clock");
 Check(IdleMode.ImageAndClock.HasImage() && IdleMode.ImageAndClock.HasClock() && !IdleMode.Off.HasClock(),"Fallback choices remain independent");
+foreach(var theme in Enum.GetValues<InterfaceTheme>())
+{
+    var palette=InterfacePalettes.For(theme);
+    Check(InterfacePalettes.Contrast(palette.Text,palette.Surface)>=7 &&
+        InterfacePalettes.Contrast(palette.Muted,palette.Surface)>=4.5 &&
+        InterfacePalettes.Contrast(palette.Accent,palette.Surface)>=4.5 &&
+        InterfacePalettes.Contrast(InterfacePalettes.TextOnAccent(palette.Accent),palette.Accent)>=4.5,
+        "Readable interface palette: "+theme);
+}
+Check(InterfacePalettes.Contrast(InterfacePalettes.EnsureAccent(System.Drawing.Color.FromArgb(15,15,15),InterfacePalettes.For(InterfaceTheme.Carbon).Surface),InterfacePalettes.For(InterfaceTheme.Carbon).Surface)>=4.5,
+    "Custom dark accent is corrected on a dark theme");
+Check(InterfacePalettes.Contrast(InterfacePalettes.EnsureAccent(System.Drawing.Color.FromArgb(250,250,250),InterfacePalettes.For(InterfaceTheme.Pearl).Surface),InterfacePalettes.For(InterfaceTheme.Pearl).Surface)>=4.5,
+    "Custom light accent is corrected on a light theme");
 var warm=ArtworkPalette.Create([new(.8f,.7f,.6f),new(.7f,.6f,.5f)]);
 Check(warm.Primary.X>warm.Primary.Z && warm.Primary.X>=.95f,"Warm cover keeps a bright warm spectrum");
 var blue=ArtworkPalette.Create([new(.1f,.2f,.7f),new(.2f,.3f,.8f)]);

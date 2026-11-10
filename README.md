@@ -28,7 +28,7 @@ Todo se integra detrás de tus iconos, para que puedas seguir usando tu escritor
 - **Movimiento que se siente.** Profundidad y paralaje suave al mover el cursor, con la opción de desactivarlos.
 - **El ritmo a tu manera.** Coloca el visualizador alrededor de la portada o sobre la barra de tareas.
 - **Todo en su sitio.** Ajusta posición, tamaño, intensidad y suavidad hasta encontrar tu combinación. Mira el resultado en la vista previa antes de guardar.
-- **Una interfaz muy tuya.** Elige el color de acento y la transparencia de la ventana de ajustes.
+- **Una interfaz muy tuya.** Explora temas claros y oscuros, elige el color de acento y ajusta la transparencia de la ventana de ajustes.
 - **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
 - **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
 - **También cuando hay silencio.** Si no hay sesión musical, puedes mostrar un reloj, una imagen de tu equipo o ambos.
@@ -42,7 +42,7 @@ Descomprime la descarga y ejecuta **EQVisualizer.exe**. Encontrarás su icono ju
 
 ### 2. Pon tu música
 
-Reproduce una canción en tu aplicación de música. Si tienes varias abiertas, elige la fuente que quieres seguir.
+Reproduce una canción en tu aplicación de música. Si tienes varias abiertas, elige el reproductor que quieres seguir. Desde la bandeja también puedes elegir si el visualizador escucha la salida completa o solo el proceso musical compatible.
 
 ### 3. Dale tu toque
 

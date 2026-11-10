@@ -5,8 +5,9 @@
     <Compile Include="../../src/EQVisualizer/VisualScene.cs" Link="VisualScene.cs" />
     <Compile Include="../../src/EQVisualizer/VisualizerMode.cs" Link="VisualizerMode.cs" />
     <Compile Include="../../src/EQVisualizer/IdleMode.cs" Link="IdleMode.cs" />
+    <Compile Include="../../src/EQVisualizer/InterfaceTheme.cs" Link="InterfaceTheme.cs" />
     <Compile Include="../../src/EQVisualizer/ArtworkPalette.cs" Link="ArtworkPalette.cs" />
     <Compile Include="../../src/EQVisualizer/BackdropBlur.cs" Link="BackdropBlur.cs" />
-    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.Core" Version="3.3.0" />
   </ItemGroup>
 </Project>

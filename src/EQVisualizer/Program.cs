@@ -5,6 +5,7 @@ using NAudio.Wave;
 using NAudio.CoreAudioApi;
 using Microsoft.Win32;
 using System.Numerics;
+using System.Diagnostics;
 
 namespace EQVisualizer;
 
@@ -14,12 +15,24 @@ internal static class Program
     private static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-        Application.SetColorMode(SystemColorMode.Dark);
+        Application.SetColorMode(StoredInterfaceTheme().IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
         if (args.Length == 2 && args[0] == "--smoke-test") return SmokeTest.Run(args[1]);
         using var instance = new Mutex(true, "Local\\EQVisualizer.MusicWallpaper", out bool first);
         if (!first) return 0;
         Application.Run(new WallpaperContext());
         return 0;
+    }
+    private static InterfaceTheme StoredInterfaceTheme()
+    {
+        try
+        {
+            string file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EQVisualizer", "settings.json");
+            using var document = JsonDocument.Parse(File.ReadAllText(file));
+            if (document.RootElement.TryGetProperty("InterfaceTheme", out var value) && value.TryGetInt32(out int index) &&
+                Enum.IsDefined((InterfaceTheme)index)) return (InterfaceTheme)index;
+        }
+        catch { }
+        return InterfaceTheme.Carbon;
     }
 }
 
@@ -31,6 +44,8 @@ internal sealed class Settings
     public float Strength { get; set; } = 1f;
     public bool Enabled { get; set; } = true;
     public string? AudioDeviceId { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int AudioProcessId { get; set; }
     public string? MediaSourceId { get; set; }
     public Keys HotkeyKey { get; set; } = Keys.V;
     public bool HotkeyControl { get; set; } = true;
@@ -55,8 +70,9 @@ internal sealed class Settings
     public bool ShowTrackInfo { get; set; }
     public float BarThickness { get; set; } = 1.6f;
     public float BackgroundBlur { get; set; } = 35;
-    public int InterfaceAccent { get; set; } = unchecked((int)0xFF6EE7CF);
-    public int InterfaceOpacity { get; set; } = 100;
+    public InterfaceTheme InterfaceTheme { get; set; } = InterfaceTheme.Carbon;
+    public int InterfaceAccent { get; set; }
+    public int InterfaceOpacity { get; set; } = 96;
     public IdleMode NoSessionMode { get; set; } = IdleMode.Off;
     public string? NoSessionImagePath { get; set; }
 }
@@ -73,6 +89,7 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 500 };
     private readonly DesktopIconContrast iconContrast = new();
     private readonly ToolStripMenuItem deviceMenu = new("Salida de audio (mezcla completa)");
+    private readonly ToolStripMenuItem captureSourceMenu = new("Capturar sonido de");
     private bool exiting;
     private int pollCount;
     private bool systemPaused;
@@ -99,7 +116,8 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
         if (!Enum.IsDefined(settings.NoSessionMode)) settings.NoSessionMode = IdleMode.Off;
-        Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
+        if (!Enum.IsDefined(settings.InterfaceTheme)) settings.InterfaceTheme = InterfaceTheme.Carbon;
+        Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
@@ -123,6 +141,8 @@ internal sealed class WallpaperContext : ApplicationContext
         menu.Items.Add("Menos intensidad", null, (_, _) => SetStrength(settings.Strength - .25f));
         menu.Items.Add("Más intensidad", null, (_, _) => SetStrength(settings.Strength + .25f));
         menu.Items.Add(sourceMenu);
+        captureSourceMenu.DropDownOpening += (_, _) => RefreshCaptureSources();
+        menu.Items.Add(captureSourceMenu);
         deviceMenu.DropDownOpening += (_, _) => RefreshDevices();
         menu.Items.Add(deviceMenu);
         menu.Items.Add("Salir", null, (_, _) => ExitThread());
@@ -130,7 +150,7 @@ internal sealed class WallpaperContext : ApplicationContext
         media = new MediaSessionMonitor(SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext());
         menu.Items.Insert(2, new ToolStripMenuItem("Estado", null, (_, _) => MessageBox.Show(
             string.Join("\n", forms.Select(f => f.RendererName)) + "\nContraste: " + iconContrast.Status +
-            "\nAudio: " + (audio.Error ?? (settings.CaptureAudio ? "Mezcla de la salida elegida" : "Desactivado")), "EQ Visualizer")));
+            "\nAudio: " + (audio.Error ?? (settings.CaptureAudio ? settings.AudioProcessId > 0 ? $"Proceso {settings.AudioProcessId} (aislado)" : "Mezcla de la salida elegida" : "Desactivado")), "EQ Visualizer")));
         tray.DoubleClick += (_, _) => Toggle();
         hotkey.ToggleRequested += (_, _) => Toggle();
         hotkey.EffectsRequested += (_, _) => { settings.EnableTunnel = !settings.EnableTunnel; settings.EnableParallax = settings.EnableTunnel; Save(); };
@@ -185,6 +205,53 @@ internal sealed class WallpaperContext : ApplicationContext
                 }
         }
         catch { }
+    }
+
+    private void RefreshCaptureSources()
+    {
+        captureSourceMenu.DropDownItems.Clear();
+        var mix = (ToolStripMenuItem)captureSourceMenu.DropDownItems.Add("Mezcla completa de la salida", null, (_, _) => SetCaptureProcess(0));
+        mix.Checked = settings.AudioProcessId == 0;
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
+        {
+            captureSourceMenu.DropDownItems.Add("Aislamiento: requiere Windows build 20348+").Enabled = false;
+            return;
+        }
+        var found = new HashSet<int>();
+        try
+        {
+            using var endpoints = new MMDeviceEnumerator();
+            foreach (var device in endpoints.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            using (device)
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+                for (int i = 0; i < sessions.Count; i++)
+                {
+                    using var session = sessions[i];
+                    int pid = (int)session.GetProcessID;
+                    if (pid <= 0 || !found.Add(pid)) continue;
+                    string name;
+                    try { using var process = Process.GetProcessById(pid); name = process.ProcessName; }
+                    catch { continue; }
+                    var item = (ToolStripMenuItem)captureSourceMenu.DropDownItems.Add($"{name} · PID {pid}", null, (_, _) => SetCaptureProcess(pid));
+                    item.Checked = settings.AudioProcessId == pid;
+                }
+            }
+        }
+        catch { }
+        if (settings.AudioProcessId > 0 && !found.Contains(settings.AudioProcessId))
+        {
+            var missing = (ToolStripMenuItem)captureSourceMenu.DropDownItems.Add($"PID {settings.AudioProcessId} · ya no disponible");
+            missing.Checked = true; missing.Enabled = false;
+        }
+        if (found.Count == 0) captureSourceMenu.DropDownItems.Add("No hay procesos de audio visibles").Enabled = false;
+    }
+
+    private void SetCaptureProcess(int pid)
+    {
+        settings.AudioProcessId = pid;
+        deviceMenu.Enabled = pid == 0;
+        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, pid);
     }
 
     private void ShowWelcomeIfNeeded()
@@ -256,7 +323,7 @@ internal sealed class WallpaperContext : ApplicationContext
     {
         systemPaused = paused;
         foreach (var f in forms) f.SetSystemPaused(paused);
-        audio.Update(!paused && settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId);
+        audio.Update(!paused && settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId);
     }
 
     private void RecoverDesktop()
@@ -268,7 +335,7 @@ internal sealed class WallpaperContext : ApplicationContext
                 DesktopHost.Attach(form.Handle);
             form.RefreshState();
         }
-        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId);
+        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId);
         if (++pollCount % 4 == 0 && settings.Enabled && !systemPaused) _ = UpdateIconContrastAsync();
     }
     private async Task UpdateIconContrastAsync()
@@ -289,7 +356,9 @@ internal sealed class WallpaperContext : ApplicationContext
             tray.ShowBalloonTip(4000, "EQ Visualizer", "Atajo ocupado; se conservaron los atajos anteriores.", ToolTipIcon.Warning);
         }
         Save();
-        Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
+        Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
+        Application.SetColorMode(settings.InterfaceTheme.IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
+        if (tray.ContextMenuStrip is { } menu) { menu.BackColor = Ui.Surface; menu.ForeColor = Ui.Text; menu.Invalidate(true); }
         foreach (var form in forms) form.RefreshIdleOptions();
     }
 
@@ -298,11 +367,11 @@ internal sealed class WallpaperContext : ApplicationContext
     private void SetDevice(string? id)
     {
         string? previous = settings.AudioDeviceId;
-        try { settings.AudioDeviceId = id; Save(); audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), id); }
+        try { settings.AudioDeviceId = id; Save(); audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), id, settings.AudioProcessId); }
         catch (Exception e)
         {
             tray.ShowBalloonTip(4000, "EQ Visualizer", "Dispositivo no disponible: " + e.Message, ToolTipIcon.Warning);
-            try { audio.Start(previous); } catch { }
+            try { audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), previous, settings.AudioProcessId); } catch { }
         }
     }
     private void Save()

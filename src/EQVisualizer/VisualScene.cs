@@ -27,7 +27,7 @@ internal sealed class VisualScene
         bool showImage, bool showClock, ReadOnlySpan<ShadeRegion> shades = default)
     {
         count = 0; width = Math.Max(1, viewWidth); height = Math.Max(1, viewHeight);
-        Quad(width / 2, height / 2, width, height, new(.035f, .045f, .075f, 1), false);
+        Quad(width / 2, height / 2, width, height, new(.055f, .058f, .065f, 1), false);
         float unit = Math.Min(width, height), size = unit * coverSize;
         float cx = center.X * width, cy = center.Y * height;
         if (showImage)

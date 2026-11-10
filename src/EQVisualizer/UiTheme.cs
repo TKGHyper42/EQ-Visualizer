@@ -14,10 +14,23 @@ internal static class Ui
         using var icon = new Icon(stream); return (Icon)icon.Clone();
     }
     public static Color Mix(Color a, Color b, float p) => Color.FromArgb((int)(a.R + (b.R - a.R) * p), (int)(a.G + (b.G - a.G) * p), (int)(a.B + (b.B - a.B) * p));
-    public static Color Accent { get; set; } = Color.FromArgb(110, 231, 207);
-    public static readonly Color Background = Color.FromArgb(12, 16, 23), Sidebar = Color.FromArgb(16, 21, 30),
-        Surface = Color.FromArgb(22, 29, 40), Elevated = Color.FromArgb(31, 41, 56), Line = Color.FromArgb(43, 56, 73),
-        Text = Color.FromArgb(238, 244, 250), Muted = Color.FromArgb(145, 160, 180);
+    public static Color Background { get; private set; }
+    public static Color Sidebar { get; private set; }
+    public static Color Surface { get; private set; }
+    public static Color Elevated { get; private set; }
+    public static Color Line { get; private set; }
+    public static Color Text { get; private set; }
+    public static Color Muted { get; private set; }
+    public static Color Accent { get; private set; }
+    public static Color AccentText => InterfacePalettes.TextOnAccent(Accent);
+    static Ui() => ApplyTheme(InterfaceTheme.Carbon, 0);
+    public static void ApplyTheme(InterfaceTheme theme, int customAccent)
+    {
+        var palette = InterfacePalettes.For(theme);
+        Background = palette.Background; Sidebar = palette.Sidebar; Surface = palette.Surface;
+        Elevated = palette.Elevated; Line = palette.Line; Text = palette.Text; Muted = palette.Muted;
+        Accent = customAccent == 0 ? palette.Accent : InterfacePalettes.EnsureAccent(Color.FromArgb(customAccent), palette.Surface);
+    }
     public static Font Font(float size = 10, FontStyle style = FontStyle.Regular) => new("Segoe UI", size, style);
     public static GraphicsPath Round(RectangleF r, float radius = 12)
     {
@@ -100,11 +113,12 @@ internal sealed class UiButton : Button
         var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(Parent?.BackColor ?? Ui.Background);
         var rect = new RectangleF(1, 1, Width - 2, Height - 2); using var path = Ui.Round(rect, 8);
         Color resting = Primary ? Ui.Accent : Quiet ? Parent?.BackColor ?? Ui.Sidebar : Ui.Surface;
-        Color target = Primary ? Ui.Mix(Ui.Accent, Color.White, .25f) : Selected ? Ui.Mix(Ui.Surface, Ui.Accent, .16f) : Ui.Elevated;
+        Color target = Primary ? Ui.Mix(Ui.Accent, InterfacePalettes.Contrast(Color.White, Ui.Background) > InterfacePalettes.Contrast(Color.Black, Ui.Background) ? Color.White : Color.Black, .1f)
+            : Selected ? Ui.Mix(Ui.Surface, Ui.Accent, .16f) : Ui.Elevated;
         Color bg = Ui.Mix(resting, target, animation.Value);
         using (var fill = new SolidBrush(bg)) g.FillPath(fill, path);
         if (Focused) { using var focus = new Pen(Ui.Accent, 1); g.DrawPath(focus, path); }
-        var color = Primary ? Ui.Background : Selected ? Ui.Accent : Ui.Text;
+        var color = Primary ? Ui.AccentText : Selected ? Ui.Accent : Ui.Text;
         var bounds = new Rectangle(Navigation ? 18 : 4, 0, Width - (Navigation ? 30 : 8), Height);
         TextRenderer.DrawText(g, Text, Font, bounds, color, (Navigation ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter) | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }

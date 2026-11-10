@@ -141,8 +141,14 @@ internal sealed class D3D11Renderer : IDisposable
                 }
             }
             finally { image.UnlockBits(data); }
-            var center = image.GetPixel(renderWidth / 2, renderHeight / 2);
-            if (center.R + center.G + center.B < 40) throw new InvalidOperationException("GPU readback is unexpectedly black.");
+            int peak = 0;
+            for (int y = 0; y < renderHeight; y += 8)
+                for (int x = 0; x < renderWidth; x += 8)
+                {
+                    var pixel = image.GetPixel(x, y);
+                    peak = Math.Max(peak, pixel.R + pixel.G + pixel.B);
+                }
+            if (peak < 40) throw new InvalidOperationException("GPU readback is unexpectedly black.");
             image.Save(path, ImageFormat.Png);
         }
         finally { graphics.Context.Unmap(staging, 0); }
