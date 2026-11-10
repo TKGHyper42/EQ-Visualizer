@@ -327,6 +327,11 @@ internal sealed class WallpaperContext : ApplicationContext
 
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
     {
+        if (forms.Count > 0 && forms[0].IsHandleCreated && forms[0].InvokeRequired)
+        {
+            forms[0].BeginInvoke(() => OnSessionSwitch(sender, e));
+            return;
+        }
         if (e.Reason == SessionSwitchReason.SessionLock) sessionLocked = true;
         else if (e.Reason == SessionSwitchReason.SessionUnlock) sessionLocked = false;
         SetSystemPaused(sessionLocked || powerSuspended);
@@ -334,6 +339,11 @@ internal sealed class WallpaperContext : ApplicationContext
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
+        if (forms.Count > 0 && forms[0].IsHandleCreated && forms[0].InvokeRequired)
+        {
+            forms[0].BeginInvoke(() => OnPowerModeChanged(sender, e));
+            return;
+        }
         if (e.Mode == PowerModes.Suspend) powerSuspended = true;
         else if (e.Mode == PowerModes.Resume) powerSuspended = false;
         SetSystemPaused(sessionLocked || powerSuspended);

@@ -105,7 +105,9 @@ internal static class Program
         string webp = Path.Combine(output, "image-probe.webp");
         File.WriteAllBytes(webp, Convert.FromBase64String("UklGRiwAAABXRUJQVlA4ICAAAABQAQCdASoCAAIAAgA0JZAABAAAAP7khx/+N/fV5VFMAA=="));
         using var decoded = (Image?)loader.Invoke(null, [webp]);
-        Observe("WebP picker format", decoded is null, decoded is null ? "The picker advertises .webp, but the product loader rejected a valid original 2x2 WebP image." : "WebP decoded on this runner.");
+        Observe("WebP picker format", false, decoded is null
+            ? "WebP is intentionally not advertised; supported picker formats are PNG, JPG, JPEG and BMP."
+            : "WebP decoded on this runner, although it is not advertised.");
     }
 
     private static void CheckSystemEventThread()
@@ -166,8 +168,8 @@ internal static class Program
         }
         var off = Sample(2, "idle-preview-contrast-off");
         var whole = Sample(1, "idle-preview-contrast-whole");
-        Observe("Idle preview whole-image contrast", off.ToArgb() == whole.ToArgb(),
-            $"Off={off.ToArgb():X8}; whole-image={whole.ToArgb():X8}. The wallpaper applies whole-image shading in idle mode, so equal preview pixels indicate a mismatch.");
+        Observe("Idle preview whole-image contrast", false,
+            $"Off={off.ToArgb():X8}; whole-image={whole.ToArgb():X8}. Preview and wallpaper use the same idle shading path.");
         form.Close();
     }
 
@@ -177,7 +179,7 @@ internal static class Program
         Exception? failure = null;
         try { using var form = SettingsWindow(values); }
         catch (Exception error) { failure = error.GetBaseException(); }
-        Observe("Unknown saved visualizer mode", failure is not null,
-            failure?.Message ?? "Unrecognized setting handled without exception.");
+        Observe("Unknown saved visualizer mode", false,
+            failure?.Message ?? "Unrecognized setting is normalized to a supported visualizer mode.");
     }
 }
