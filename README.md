@@ -29,6 +29,7 @@ Todo se integra detrás de tus iconos, para que puedas seguir usando tu escritor
 - **El ritmo a tu manera.** Coloca el visualizador alrededor de la portada o sobre la barra de tareas.
 - **Todo en su sitio.** Ajusta posición, tamaño, intensidad y suavidad hasta encontrar tu combinación.
 - **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
+- **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
 - **Una pausa cuando hace falta.** La animación descansa cuando el escritorio queda cubierto y vuelve cuando lo necesitas.
 
 ## 🚀 Empieza a escuchar
@@ -74,3 +75,4 @@ Una canción puede cambiar el ambiente de una habitación. EQ Visualizer lleva e
 Creado por **TKGHyper42** · [Licencia MIT](LICENSE)
 
 </div>
+

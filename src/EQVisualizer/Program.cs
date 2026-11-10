@@ -51,6 +51,8 @@ internal sealed class Settings
     public float BottomMargin { get; set; } = .025f;
     public ContrastMode ContrastMode { get; set; } = ContrastMode.Adaptive;
     public Keys EffectsHotkeyKey { get; set; } = Keys.E;
+    public bool ShowTrackInfo { get; set; }
+    public float BarThickness { get; set; } = 1.6f;
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -87,6 +89,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.PositionX = Math.Clamp(settings.PositionX, .1f, .9f);
         settings.PositionY = Math.Clamp(settings.PositionY, .1f, .9f);
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
+        settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
@@ -213,7 +216,7 @@ internal sealed class WallpaperContext : ApplicationContext
         string label = string.IsNullOrWhiteSpace(e.Title) ? "EQ Visualizer" :
             string.IsNullOrWhiteSpace(e.Artist) ? e.Title : $"{e.Title} — {e.Artist}";
         tray.Text = label.Length > 63 ? label[..63] : label;
-        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying);
+        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying, e.Title, e.Artist);
         e.Artwork?.Dispose();
     }
 

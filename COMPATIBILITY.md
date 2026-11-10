@@ -23,6 +23,8 @@ Desde la bandeja abre **Ajustes**: portada, posición, tamaño, franja inferior,
 
 En **Visualizador** elige **Solo círculo**, **Solo franja inferior** o **Círculo y franja**. También puedes cambiarlo directamente desde el menú de la bandeja. El círculo sigue a la portada; la franja mantiene su posición sobre la barra de tareas. La portada y el túnel son independientes del modo de barras elegido.
 
+Activa **Portada → Información de la canción** para mostrar título y artista bajo la portada. Los datos proceden de la sesión musical y permanecen solo en memoria; no se incluyen canciones, portadas o nombres reales como recursos de la aplicación. **Audio → Grosor de barras** permite ajustar el ancho del círculo y de la franja entre 50 % y 300 %. El valor inicial es 160 % para mejorar su visibilidad.
+
 - `Ctrl + Alt + V`: activar o desactivar el wallpaper.
 - `Ctrl + Alt + E`: alternar túnel y paralaje.
 - Ambos atajos y sus modificadores se pueden cambiar.

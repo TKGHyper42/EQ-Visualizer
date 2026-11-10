@@ -24,6 +24,8 @@ internal static class SmokeTest
             using var renderer = new D3D11Renderer(window.Handle, 960, 540);
             Step("Uploading artwork");
             renderer.SetArtwork(cover);
+            using var info = TrackCaption.Create("Demo track", "EQ Visualizer");
+            renderer.SetCaption(info);
             var scene = new VisualScene();
             var spectrum = Enumerable.Range(0, 64).Select(i => .25f + .25f * MathF.Sin(i * .3f)).ToArray();
             scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, true, true, .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
@@ -31,12 +33,13 @@ internal static class SmokeTest
             renderer.Render(scene.Vertices, Path.Combine(directory, "renderer.png"));
             foreach (var mode in VisualizerModes.All)
             {
-                scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, mode.HasCircle(), mode.HasBottom(), .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
+                scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, mode.HasCircle(), mode.HasBottom(), .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1), 1.6f, true), spectrum, []);
                 renderer.Render(scene.Vertices, Path.Combine(directory, $"mode-{(int)mode}.png"));
             }
             renderer.Resize(640, 360); renderer.Render(scene.Vertices);
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
+            renderer.SetCaption(null); renderer.Render([]); renderer.SetCaption(info); renderer.Render(scene.Vertices);
             Step("Capturing settings form");
             using (var number = new UiNumber { Minimum = 0, Maximum = 10, Increment = .25m, DecimalPlaces = 0, Value = 2.5m })
             {

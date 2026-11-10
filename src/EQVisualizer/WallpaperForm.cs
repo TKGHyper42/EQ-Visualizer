@@ -18,6 +18,8 @@ internal sealed class WallpaperForm : Form
     private bool systemPaused, covered, isPlaying;
     private Image? artwork;
     private Bitmap? brightnessSample;
+    private Bitmap? caption;
+    private string title = "", artist = "";
     private D3D11Renderer? renderer;
     private Vector2 pointer;
     private Vector4 primary = new(.2f, .85f, 1, 1), secondary = new(.7f, .25f, 1, 1);
@@ -47,8 +49,11 @@ internal sealed class WallpaperForm : Form
         if (show && !covered && (repaint || changed)) Invalidate();
     }
     public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
-    public void SetNowPlaying(Image? image, bool playing)
+    public void SetNowPlaying(Image? image, bool playing, string title = "", string artist = "")
     {
+        this.title = title; this.artist = artist;
+        caption?.Dispose(); caption = null;
+        try { renderer?.SetCaption(null); } catch { DropRenderer(); }
         artwork?.Dispose(); artwork = image is null ? null : new Bitmap(image);
         brightnessSample?.Dispose(); brightnessSample = artwork is null ? null : new Bitmap(artwork, 16, 16);
         if (artwork is not null)
@@ -78,7 +83,7 @@ internal sealed class WallpaperForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        try { renderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); renderer.SetArtwork(artwork); } catch { DropRenderer(); }
+        try { renderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); renderer.SetArtwork(artwork); renderer.SetCaption(caption); } catch { DropRenderer(); }
     }
     protected override void OnHandleDestroyed(EventArgs e) { DropRenderer(); base.OnHandleDestroyed(e); }
     protected override void OnPaintBackground(PaintEventArgs e) { }
@@ -98,12 +103,17 @@ internal sealed class WallpaperForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         if (artwork is null || !settings.Enabled || systemPaused || covered) return;
+        if (settings.ShowTrackInfo && caption is null && !(string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)))
+        {
+            caption = TrackCaption.Create(title, artist);
+            try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
+        }
         var region = settings.ContrastMode == ContrastMode.WholeImage ? new[] { new ShadeRegion(0, 0, Width, Height) } : settings.ContrastMode == ContrastMode.Adaptive ? shades : [];
         float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);
         scene.Build(new(Width, Height, phase, new(settings.PositionX + pointer.X, settings.PositionY + pointer.Y),
             settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
             settings.VisualizerMode.HasCircle(),
-            settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary), spectrum, region);
+            settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary, settings.BarThickness, settings.ShowTrackInfo && caption is not null), spectrum, region);
         if (renderer is not null)
         {
             try
@@ -125,9 +135,11 @@ internal sealed class WallpaperForm : Form
             var a = vertices[i]; var b = vertices[i + 1]; var c = vertices[i + 2]; var d = vertices[i + 5];
             if (a.Textured > .5f)
             {
+                var image = a.Textured > 1.5f ? caption : artwork;
+                if (image is null) continue;
                 using var attr = new ImageAttributes(); attr.SetColorMatrix(new ColorMatrix
                 { Matrix00 = a.Color.X, Matrix11 = a.Color.Y, Matrix22 = a.Color.Z, Matrix33 = a.Color.W, Matrix44 = 1 });
-                g.DrawImage(artwork!, [Pixel(a.Position), Pixel(b.Position), Pixel(d.Position)], new RectangleF(0, 0, artwork!.Width, artwork.Height), GraphicsUnit.Pixel, attr);
+                g.DrawImage(image, [Pixel(a.Position), Pixel(b.Position), Pixel(d.Position)], new RectangleF(0, 0, image.Width, image.Height), GraphicsUnit.Pixel, attr);
             }
             else
             {
@@ -140,5 +152,5 @@ internal sealed class WallpaperForm : Form
     private void DropRenderer() { renderer?.Dispose(); renderer = null; DoubleBuffered = true; }
     private static Vector4 ToVector(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f, 1);
     protected override void Dispose(bool disposing)
-    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
+    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); caption?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
 }

@@ -13,7 +13,8 @@ internal struct GpuVertex
 internal readonly record struct ShadeRegion(float X, float Y, float Width, float Height, float Opacity = .68f);
 internal readonly record struct SceneOptions(float Width, float Height, float Phase,
     Vector2 Center, float CoverSize, float Intensity, float Sensitivity, bool Tunnel,
-    bool Ring, bool Bottom, float BottomY, int Layers, Vector4 Primary, Vector4 Secondary);
+    bool Ring, bool Bottom, float BottomY, int Layers, Vector4 Primary, Vector4 Secondary,
+    float BarThickness = 1.6f, bool ShowTrackInfo = false);
 
 // UVs refer only to the artwork supplied by the current Windows music session.
 internal sealed class VisualScene
@@ -49,15 +50,22 @@ internal sealed class VisualScene
             if (o.Bottom)
             {
                 float bw = width * .72f, h = 2 + signal * unit * .16f * o.Intensity;
-                Quad(width * .14f + (i + .5f) * bw / spectrum.Length, height * o.BottomY - h / 2, bw / spectrum.Length * .6f, h, color, false);
+                Quad(width * .14f + (i + .5f) * bw / spectrum.Length, height * o.BottomY - h / 2, bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f), h, color, false);
             }
             if (o.Ring)
             {
                 float angle = MathF.Tau * i / Math.Max(1, spectrum.Length) - MathF.PI / 2, radius = cover * .76f;
                 var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
                 var start = new Vector2(cx, cy) + direction * radius;
-                Line(start, start + direction * (2 + signal * unit * .12f * o.Intensity), Math.Max(2, unit * .0035f), color);
+                Line(start, start + direction * (2 + signal * unit * .12f * o.Intensity), Math.Max(2, unit * .0035f) * o.BarThickness, color);
             }
+        }
+        if (o.ShowTrackInfo)
+        {
+            float w = unit * .55f, h = w / 8;
+            int first = count;
+            Quad(cx, cy + cover / 2 + unit * .014f + h / 2, w, h, Vector4.One, true);
+            for (int i = first; i < count; i++) vertices[i].Textured = 2;
         }
         foreach (var r in shades) Quad(r.X + r.Width / 2, r.Y + r.Height / 2, r.Width, r.Height, new(0, 0, 0, r.Opacity), false);
     }

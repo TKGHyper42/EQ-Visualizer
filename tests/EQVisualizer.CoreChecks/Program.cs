@@ -53,3 +53,13 @@ foreach(var mode in VisualizerModes.All)
     if(mode==VisualizerMode.Circle)Check(bars.All(v=>MathF.Abs(v.Position.X)<.46f),"Circle-only mode contains no wide taskbar strip");
     Check(System.Text.Json.JsonSerializer.Deserialize<VisualizerMode>(((int)mode).ToString())==mode,"Existing numeric settings remain compatible");
 }
+scene.Build(baseOptions with{Ring=true,BarThickness=.5f},high.Spectrum,[]);
+float thin=Vector2.Distance(scene.Vertices[baseVertices].Position,scene.Vertices[baseVertices+1].Position);
+int count=scene.Vertices.Length;
+scene.Build(baseOptions with{Ring=true,BarThickness=3},high.Spectrum,[]);
+float thick=Vector2.Distance(scene.Vertices[baseVertices].Position,scene.Vertices[baseVertices+1].Position);
+Check(thick>thin*5.9f && scene.Vertices.Length==count,"Bar thickness changes width without increasing geometry cost");
+scene.Build(baseOptions with{ShowTrackInfo=true},high.Spectrum,[]);
+Check(scene.Vertices.Length==baseVertices+6 && scene.Vertices[^1].Textured==2,"Optional track information uses its own texture quad");
+scene.Build(baseOptions with{ShowTrackInfo=false},high.Spectrum,[]);
+Check(scene.Vertices.ToArray().All(v=>v.Textured!=2),"Track information is removed completely when disabled");

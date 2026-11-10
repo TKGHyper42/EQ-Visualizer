@@ -15,6 +15,7 @@ internal sealed class D3D11Renderer : IDisposable
     private ID3D11Texture2D? backBuffer;
     private ID3D11RenderTargetView? target;
     private ID3D11ShaderResourceView? artwork;
+    private ID3D11ShaderResourceView? caption;
     private readonly ID3D11VertexShader vertexShader;
     private readonly ID3D11PixelShader pixelShader;
     private readonly ID3D11InputLayout inputLayout;
@@ -103,6 +104,7 @@ internal sealed class D3D11Renderer : IDisposable
         c.RSSetViewport(0, 0, renderWidth, renderHeight); c.RSSetState(rasterizer); c.OMSetBlendState(blend);
         c.VSSetShader(vertexShader); c.PSSetShader(pixelShader); c.PSSetSampler(0, sampler);
         if (artwork is not null) c.PSSetShaderResource(0, artwork);
+        if (caption is not null) c.PSSetShaderResource(1, caption);
         c.IASetInputLayout(inputLayout); c.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         c.IASetVertexBuffer(0, vertexBuffer, (uint)Marshal.SizeOf<GpuVertex>());
         if (!vertices.IsEmpty)
@@ -142,6 +144,29 @@ internal sealed class D3D11Renderer : IDisposable
         }
         finally { graphics.Context.Unmap(staging, 0); }
     }
+    public void SetCaption(Bitmap? image)
+    {
+        graphics.Context.ClearState(); caption?.Dispose(); caption = null;
+        if (image is null) return;
+        var data = image.LockBits(new Rectangle(Point.Empty, image.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var description = new Texture2DDescription
+            {
+                Width = (uint)image.Width,
+                Height = (uint)image.Height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.B8G8R8A8_UNorm,
+                SampleDescription = SampleDescription.Default,
+                Usage = ResourceUsage.Immutable,
+                BindFlags = BindFlags.ShaderResource
+            };
+            using var texture = graphics.Device.CreateTexture2D(description, new SubresourceData(data.Scan0, (uint)data.Stride));
+            caption = graphics.Device.CreateShaderResourceView(texture);
+        }
+        finally { image.UnlockBits(data); }
+    }
     private void CreateTarget()
     {
         backBuffer = swapChain.GetBuffer<ID3D11Texture2D>(0); target = graphics.Device.CreateRenderTargetView(backBuffer);
@@ -149,7 +174,7 @@ internal sealed class D3D11Renderer : IDisposable
     private void ReleaseTarget() { target?.Dispose(); target = null; backBuffer?.Dispose(); backBuffer = null; }
     public void Dispose()
     {
-        graphics.Context.ClearState(); ReleaseTarget(); artwork?.Dispose();
+        graphics.Context.ClearState(); ReleaseTarget(); artwork?.Dispose(); caption?.Dispose();
         rasterizer?.Dispose(); blend?.Dispose(); sampler?.Dispose(); vertexBuffer?.Dispose();
         inputLayout?.Dispose(); pixelShader?.Dispose(); vertexShader?.Dispose(); swapChain?.Dispose(); graphics.Dispose();
     }

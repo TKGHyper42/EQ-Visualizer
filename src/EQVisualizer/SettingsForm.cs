@@ -7,6 +7,7 @@ internal sealed class SettingsForm : ModernForm
     private readonly CheckBox capture = new UiToggle() { Text = "Analizar la salida de audio", AutoSize = false };
     private readonly CheckBox tunnel = new UiToggle() { Text = "Túnel de portadas", AutoSize = false };
     private readonly CheckBox parallax = new UiToggle() { Text = "Seguir suavemente el cursor", AutoSize = false };
+    private readonly CheckBox trackInfo = new UiToggle() { Text = "Título y artista", AutoSize = false };
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
@@ -44,6 +45,7 @@ internal sealed class SettingsForm : ModernForm
         AcceptButton = save; CancelButton = cancel;
         var appearance = Page("Portada", "El centro de tu escritorio.");
         Row(appearance, "Visualizador", mode); mode.SelectedIndex = (int)settings.VisualizerMode;
+        trackInfo.Checked = settings.ShowTrackInfo; Row(appearance, "Información de la canción", trackInfo);
         Number(appearance, "Tamaño de portada (%)", "size", settings.CoverSize * 100, 15, 65);
         Number(appearance, "Posición horizontal (%)", "x", settings.PositionX * 100, 10, 90);
         Number(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
@@ -56,6 +58,7 @@ internal sealed class SettingsForm : ModernForm
         Number(audio, "Sensibilidad", "sensitivity", settings.Sensitivity, .1m, 5, .1m);
         Number(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
         Number(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
+        Number(audio, "Grosor de barras (%)", "thickness", settings.BarThickness * 100, 50, 300, 10);
         Hint(audio, "Elige el reproductor y la salida desde el menú de la bandeja. La sesión proporciona título y portada; la captura analiza toda la mezcla de la salida elegida, incluidos sonidos de otras apps. El aislamiento por proceso aún no está implementado.");
         Hint(audio, "El audio solo se analiza en memoria: no se reproduce, graba ni transmite. Sin historial musical, telemetría ni cuentas de Spotify.");
 
@@ -151,6 +154,7 @@ internal sealed class SettingsForm : ModernForm
             { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }
             float N(string name) => (float)numbers[name].Value;
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
+            settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
             settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;
