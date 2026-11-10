@@ -37,7 +37,13 @@ internal sealed class SettingsForm : ModernForm
         sidebar.Controls.Add(navigation); sidebar.Controls.Add(note); sidebar.Controls.Add(brand);
         contentHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(28, 24, 28, 12), BackColor = Ui.Background };
         pageHost = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Background };
-        contentHost.Controls.Add(pageHost);
+        var previewLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = new Padding(0) };
+        previewLayout.ColumnStyles.Add(new(SizeType.Percent, 100));
+        previewLayout.RowStyles.Add(new(SizeType.Absolute, 174));
+        previewLayout.RowStyles.Add(new(SizeType.Absolute, 38));
+        previewLayout.RowStyles.Add(new(SizeType.Percent, 100));
+        previewLayout.Controls.Add(pageHost, 0, 2);
+        contentHost.Controls.Add(previewLayout);
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 74, Padding = new Padding(28, 14, 28, 16), BackColor = Ui.Background };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 270, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         var save = new UiButton { Text = "Guardar cambios", DialogResult = DialogResult.OK, Primary = true, Width = 148, Margin = new Padding(8, 0, 0, 0) };
@@ -120,9 +126,9 @@ internal sealed class SettingsForm : ModernForm
         previewIdle.CheckedChanged += (_, _) => UpdatePreview();
         idleMode.SelectedIndexChanged += (_, _) => UpdatePreview();
         idlePath.TextChanged += (_, _) => UpdatePreview();
-        preview.Dock = DockStyle.Top; preview.Height = 174;
-        contentHost.Controls.Add(previewBar); previewBar.BringToFront();
-        contentHost.Controls.Add(preview); preview.BringToFront();
+        preview.Dock = DockStyle.Fill;
+        previewLayout.Controls.Add(preview, 0, 0);
+        previewLayout.Controls.Add(previewBar, 0, 1);
         foreach (var box in numbers.Values) box.ValueChanged += (_, _) => UpdatePreview();
         foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo }) box.CheckedChanged += (_, _) => UpdatePreview();
         mode.SelectedIndexChanged += (_, _) => UpdatePreview();

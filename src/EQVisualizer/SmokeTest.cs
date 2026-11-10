@@ -74,6 +74,14 @@ internal static class SmokeTest
             }
             using var screenshot = new Bitmap(settings.Width, settings.Height);
             settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
+            var previewPoint = settings.PointToClient(preview.PointToScreen(new Point(preview.Width / 2, preview.Height / 2)));
+            using (var singlePreview = new Bitmap(preview.Width, preview.Height))
+            {
+                preview.DrawToBitmap(singlePreview, new Rectangle(Point.Empty, singlePreview.Size));
+                if (screenshot.GetPixel(previewPoint.X, previewPoint.Y).ToArgb() !=
+                    singlePreview.GetPixel(preview.Width / 2, preview.Height / 2).ToArgb())
+                    throw new InvalidOperationException("The preview is covered by another settings control.");
+            }
             screenshot.Save(Path.Combine(directory, "settings.png"), System.Drawing.Imaging.ImageFormat.Png);
             for (int i = 0; i < settings.SectionCount; i++)
             {
