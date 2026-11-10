@@ -59,6 +59,9 @@ internal static class SmokeTest
                 entry.Text = "999"; if (number.Value != 10) throw new InvalidOperationException("Numeric field exceeded its limit.");
             }
             var values = new Settings();
+            var processSettings = System.Text.Json.JsonSerializer.Serialize(new Settings { AudioProcessId = 1234, AudioProcessStartTicks = 5678 });
+            if (processSettings.Contains("AudioProcessId") || processSettings.Contains("AudioProcessStartTicks"))
+                throw new InvalidOperationException("A temporary audio process identity was persisted.");
             var before = System.Text.Json.JsonSerializer.Serialize(values);
             using var settings = new SettingsForm(values, new Bitmap(cover));
             settings.Show(); PumpAnimations();

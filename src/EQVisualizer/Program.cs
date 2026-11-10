@@ -46,6 +46,8 @@ internal sealed class Settings
     public string? AudioDeviceId { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public int AudioProcessId { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long AudioProcessStartTicks { get; set; }
     public string? MediaSourceId { get; set; }
     public Keys HotkeyKey { get; set; } = Keys.V;
     public bool HotkeyControl { get; set; } = true;
@@ -218,6 +220,7 @@ internal sealed class WallpaperContext : ApplicationContext
             return;
         }
         var found = new HashSet<int>();
+        bool selectedAvailable = false;
         try
         {
             using var endpoints = new MMDeviceEnumerator();
@@ -229,17 +232,23 @@ internal sealed class WallpaperContext : ApplicationContext
                 {
                     using var session = sessions[i];
                     int pid = (int)session.GetProcessID;
-                    if (pid <= 0 || !found.Add(pid)) continue;
-                    string name;
-                    try { using var process = Process.GetProcessById(pid); name = process.ProcessName; }
+                    if (pid <= 0 || found.Contains(pid)) continue;
+                    string name; long startTicks;
+                    try
+                    {
+                        using var process = Process.GetProcessById(pid);
+                        name = process.ProcessName; startTicks = process.StartTime.ToUniversalTime().Ticks;
+                    }
                     catch { continue; }
+                    found.Add(pid);
                     var item = (ToolStripMenuItem)captureSourceMenu.DropDownItems.Add($"{name} · PID {pid}", null, (_, _) => SetCaptureProcess(pid));
-                    item.Checked = settings.AudioProcessId == pid;
+                    item.Checked = settings.AudioProcessId == pid && settings.AudioProcessStartTicks == startTicks;
+                    selectedAvailable |= item.Checked;
                 }
             }
         }
         catch { }
-        if (settings.AudioProcessId > 0 && !found.Contains(settings.AudioProcessId))
+        if (settings.AudioProcessId > 0 && !selectedAvailable)
         {
             var missing = (ToolStripMenuItem)captureSourceMenu.DropDownItems.Add($"PID {settings.AudioProcessId} · ya no disponible");
             missing.Checked = true; missing.Enabled = false;
@@ -249,9 +258,16 @@ internal sealed class WallpaperContext : ApplicationContext
 
     private void SetCaptureProcess(int pid)
     {
+        long startTicks = 0;
+        if (pid > 0)
+        {
+            try { using var process = Process.GetProcessById(pid); startTicks = process.StartTime.ToUniversalTime().Ticks; }
+            catch { tray.ShowBalloonTip(4000, "EQ Visualizer", "Ese proceso de audio ya no está disponible.", ToolTipIcon.Warning); return; }
+        }
         settings.AudioProcessId = pid;
+        settings.AudioProcessStartTicks = startTicks;
         deviceMenu.Enabled = pid == 0;
-        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, pid);
+        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, pid, startTicks);
     }
 
     private void ShowWelcomeIfNeeded()
@@ -323,7 +339,7 @@ internal sealed class WallpaperContext : ApplicationContext
     {
         systemPaused = paused;
         foreach (var f in forms) f.SetSystemPaused(paused);
-        audio.Update(!paused && settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId);
+        audio.Update(!paused && settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
     }
 
     private void RecoverDesktop()
@@ -335,7 +351,7 @@ internal sealed class WallpaperContext : ApplicationContext
                 DesktopHost.Attach(form.Handle);
             form.RefreshState();
         }
-        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId);
+        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
         if (++pollCount % 4 == 0 && settings.Enabled && !systemPaused) _ = UpdateIconContrastAsync();
     }
     private async Task UpdateIconContrastAsync()
@@ -367,11 +383,11 @@ internal sealed class WallpaperContext : ApplicationContext
     private void SetDevice(string? id)
     {
         string? previous = settings.AudioDeviceId;
-        try { settings.AudioDeviceId = id; Save(); audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), id, settings.AudioProcessId); }
+        try { settings.AudioDeviceId = id; Save(); audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), id, settings.AudioProcessId, settings.AudioProcessStartTicks); }
         catch (Exception e)
         {
             tray.ShowBalloonTip(4000, "EQ Visualizer", "Dispositivo no disponible: " + e.Message, ToolTipIcon.Warning);
-            try { audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), previous, settings.AudioProcessId); } catch { }
+            try { audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), previous, settings.AudioProcessId, settings.AudioProcessStartTicks); } catch { }
         }
     }
     private void Save()

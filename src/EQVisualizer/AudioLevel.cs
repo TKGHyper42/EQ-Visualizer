@@ -19,11 +19,18 @@ internal sealed class AudioLevel : IDisposable
     public string? Error { get; private set; }
     public float[] Bands => Stopwatch.GetElapsedTime(Volatile.Read(ref updated)).TotalSeconds < .3 ? Volatile.Read(ref bands) : new float[64];
 
-    public void Update(bool needed, string? deviceId, int processId = 0)
+    public void Update(bool needed, string? deviceId, int processId = 0, long processStartTicks = 0)
     {
         if (!needed) { Stop(); return; }
         if (processId > 0)
         {
+            try
+            {
+                using var process = Process.GetProcessById(processId);
+                if (processStartTicks == 0 || process.StartTime.ToUniversalTime().Ticks != processStartTicks)
+                { Stop(); Error = "El proceso de audio cambió; vuelve a seleccionarlo."; return; }
+            }
+            catch { Stop(); Error = "El proceso de audio ya no está disponible."; return; }
             if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 20348))
             { Stop(); Error = "La captura aislada requiere Windows build 20348 o posterior."; return; }
             if ((capture is not null && !captureFailed || starting) && activeProcessId == processId) return;

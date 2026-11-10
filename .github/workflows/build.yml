@@ -27,7 +27,7 @@ jobs:
       - name: Check spectrum and scene geometry
         run: dotnet run --project tests/EQVisualizer.CoreChecks -c Release
       - name: Publish executable
-        run: dotnet publish src/EQVisualizer/EQVisualizer.csproj -c Release -r ${{ matrix.arch }} --self-contained true -p:PublishSingleFile=true -o out/${{ matrix.arch }}
+        run: dotnet publish src/EQVisualizer/EQVisualizer.csproj -c Release -r ${{ matrix.arch }} --self-contained true -p:PublishSingleFile=true -p:DebugType=none -o out/${{ matrix.arch }}
       - name: Exercise published renderer
         shell: pwsh
         run: |
@@ -44,14 +44,23 @@ jobs:
         shell: pwsh
         run: |
           $destination = "out/${{ matrix.arch }}"
+          if (Test-Path "$destination/EQVisualizer.pdb") { throw "Debug symbols must not be packaged" }
           Copy-Item LICENSE, README.md, COMPATIBILITY.md, THIRD-PARTY-NOTICES.txt $destination
           $licenseDirectory = New-Item -ItemType Directory -Force "$destination/licenses"
           $packages = Join-Path $env:USERPROFILE ".nuget/packages"
-          Get-ChildItem $packages -Recurse -File -Include "*LICENSE*","*NOTICE*" | ForEach-Object {
-            $relative = $_.FullName.Substring($packages.Length + 1)
-            $target = Join-Path $licenseDirectory.FullName $relative
-            New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-            Copy-Item $_.FullName $target
+          $assets = Get-Content "src/EQVisualizer/obj/project.assets.json" -Raw | ConvertFrom-Json
+          $dependencies = @($assets.libraries.PSObject.Properties.Name | ForEach-Object { $_.ToLowerInvariant() })
+          $dependencies += "microsoft.netcore.app.runtime.${{ matrix.arch }}"
+          $dependencies += "microsoft.windowsdesktop.app.runtime.${{ matrix.arch }}"
+          foreach ($dependency in $dependencies) {
+            $directory = Join-Path $packages $dependency
+            if (-not (Test-Path $directory)) { continue }
+            Get-ChildItem $directory -Recurse -File -Include "*LICENSE*","*NOTICE*" | ForEach-Object {
+              $relative = $_.FullName.Substring($packages.Length + 1)
+              $target = Join-Path $licenseDirectory.FullName $relative
+              New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+              Copy-Item $_.FullName $target
+            }
           }
           Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256 | Format-List | Out-String | Set-Content "$destination/SHA256.txt"
       - uses: actions/upload-artifact@v4
