@@ -83,7 +83,7 @@ internal sealed class SettingsForm : ModernForm
         idlePath.Dock = DockStyle.Fill;
         browse.Click += (_, _) =>
         {
-            using var picker = new OpenFileDialog { Title = "Elige una imagen de tu equipo", Filter = "Imágenes|*.png;*.jpg;*.jpeg;*.bmp;*.webp|Todos los archivos|*.*", CheckFileExists = true };
+            using var picker = new OpenFileDialog { Title = "Elige una imagen de tu equipo", Filter = "Imágenes compatibles|*.png;*.jpg;*.jpeg;*.bmp|Todos los archivos|*.*", CheckFileExists = true };
             if (picker.ShowDialog(this) == DialogResult.OK) idlePath.Text = picker.FileName;
         };
         idleFile.Controls.Add(idlePath); idleFile.Controls.Add(browse);
@@ -245,7 +245,7 @@ internal sealed class SettingsForm : ModernForm
         if (DialogResult == DialogResult.OK)
         {
             if (((IdleMode)idleMode.SelectedIndex).HasImage() && !SettingsPreview.CanLoadImage(idlePath.Text))
-            { MessageBox.Show(this, "Selecciona una imagen válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música"); e.Cancel = true; return; }
+            { MessageBox.Show(this, "Selecciona una imagen PNG, JPG, JPEG o BMP válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música"); e.Cancel = true; return; }
             if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||
                 Equals(toggleKey.SelectedItem, effectsKey.SelectedItem) || !ctrl.Checked && !alt.Checked && !shift.Checked)
             { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }

@@ -97,14 +97,16 @@ internal sealed class SettingsPreview : Control
         {
             backdrop?.Dispose(); backdrop = BackdropImage.Create(selectedArtwork, options.Blur); cachedBlur = options.Blur;
         }
+        var idleShades = options.Contrast == ContrastMode.WholeImage
+            ? new[] { new ShadeRegion(0, 0, canvas.Width, canvas.Height) } : [];
         if (options.PreviewIdle)
             scene.BuildIdle(canvas.Width, canvas.Height, options.CoverSize, new(options.X, options.Y),
-                idleImage, options.IdleMode.HasClock(), options.ClockStyle);
+                idleImage, options.IdleMode.HasClock(), options.ClockStyle, idleShades);
         else
         {
             float bottom = Math.Clamp(.96f - options.Margin, .2f, .98f);
             var shades = options.Contrast == ContrastMode.WholeImage
-                ? new[] { new ShadeRegion(0, 0, canvas.Width, canvas.Height, .35f) } : [];
+                ? new[] { new ShadeRegion(0, 0, canvas.Width, canvas.Height) } : [];
             scene.Build(new SceneOptions(canvas.Width, canvas.Height, .3f, new(options.X, options.Y),
                 options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
                 options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,

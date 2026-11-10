@@ -28,6 +28,17 @@ foreach(var format in new[]{(16,false),(24,false),(32,false),(32,true)})
     a.Reset();a.Push(new byte[16384],2,16,false,48000);Check(a.Spectrum.All(v=>v==0),"Silence clears the spectrum");
 }
 Check(peaks.Max()-peaks.Min()<=1,"PCM and float formats agree on frequency");
+var antiphase = new AudioAnalyzer();
+var opposite = new byte[8192 * 2 * 2];
+for (int i = 0; i < 8192; i++)
+{
+    short value = (short)(.7f * MathF.Sin(MathF.Tau * 1000 * i / 48000) * short.MaxValue);
+    BinaryPrimitives.WriteInt16LittleEndian(opposite.AsSpan((i * 2) * 2, 2), value);
+    BinaryPrimitives.WriteInt16LittleEndian(opposite.AsSpan((i * 2 + 1) * 2, 2), (short)-value);
+}
+antiphase.Push(opposite, 2, 16, false, 48000);
+Check(antiphase.Spectrum.Max() > .2f, "Antiphase stereo energy remains visible");
+
 var low=new AudioAnalyzer();low.Push(Tone(32,true,100),2,32,true,48000);
 var high=new AudioAnalyzer();high.Push(Tone(32,true,6000),2,32,true,48000);
 Check(Array.IndexOf(low.Spectrum,low.Spectrum.Max())<Array.IndexOf(high.Spectrum,high.Spectrum.Max()),"Frequency bands increase with pitch");

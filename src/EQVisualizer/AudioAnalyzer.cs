@@ -18,7 +18,8 @@ internal sealed class AudioAnalyzer
         int frameBytes = stride * channels;
         for (int offset = 0; offset + frameBytes <= bytes.Length; offset += frameBytes)
         {
-            float mixed = 0;
+            float sum = 0;
+            float energy = 0;
             for (int c = 0; c < channels; c++)
             {
                 var b = bytes.Slice(offset + c * stride, stride);
@@ -29,9 +30,13 @@ internal sealed class AudioAnalyzer
                     32 => BinaryPrimitives.ReadInt32LittleEndian(b) / 2147483648f,
                     _ => 0
                 };
-                mixed += float.IsFinite(value) ? value : 0;
+                if (!float.IsFinite(value)) value = 0;
+                sum += value;
+                energy += value * value;
             }
-            samples[filled++] = Math.Clamp(mixed / channels, -1, 1);
+            // RMS mixing keeps genuine stereo energy visible even when channels are antiphase.
+            float polarity = sum < 0 ? -1 : 1;
+            samples[filled++] = Math.Clamp(polarity * MathF.Sqrt(energy / channels), -1, 1);
             if (filled == Size) { Analyze(sampleRate); filled = 0; }
         }
     }

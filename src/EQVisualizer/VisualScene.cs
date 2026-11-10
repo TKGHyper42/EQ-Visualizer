@@ -47,6 +47,9 @@ internal sealed class VisualScene
             float h = analog ? w : w * 240 / 768;
             float clockX = analog && showImage ? cx + size / 2 + w / 2 + unit * .03f : cx;
             float clockY = analog || !showImage ? cy : cy + size / 2 + unit * .025f + h / 2;
+            // Keep the optional clock fully visible at every allowed position/size.
+            clockX = Math.Clamp(clockX, w / 2, width - w / 2);
+            clockY = Math.Clamp(clockY, h / 2, height - h / 2);
             int first = count;
             Quad(clockX, clockY, w, h, Vector4.One, true);
             for (int i = first; i < count; i++) vertices[i].Textured = 2;

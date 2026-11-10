@@ -118,6 +118,8 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
+        if (!Enum.IsDefined(settings.VisualizerMode)) settings.VisualizerMode = VisualizerMode.Both;
+        if (!Enum.IsDefined(settings.ContrastMode)) settings.ContrastMode = ContrastMode.Adaptive;
         if (!Enum.IsDefined(settings.NoSessionMode)) settings.NoSessionMode = IdleMode.Off;
         if (!Enum.IsDefined(settings.ClockStyle)) settings.ClockStyle = IdleClockStyle.Digital;
         if (!Enum.IsDefined(settings.InterfaceTheme)) settings.InterfaceTheme = InterfaceTheme.Carbon;
