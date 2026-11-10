@@ -83,33 +83,54 @@ internal sealed class AudioLevel : IDisposable
 {
     private WasapiLoopbackCapture? capture;
     private volatile float level;
+    private float[] bands = new float[64];
     public float Level => level;
+    public float[] Bands => Volatile.Read(ref bands);
+
     public void Start()
     {
         capture = new WasapiLoopbackCapture();
         capture.DataAvailable += (_, e) =>
         {
-            // WASAPI loopback is normally 32-bit float PCM; handle 16-bit PCM too.
             var format = capture.WaveFormat;
+            const int fftSize = 1024;
+            var fft = new NAudio.Dsp.Complex[fftSize];
             double sum = 0;
             int count = 0;
-            if (format.Encoding == WaveFormatEncoding.IeeeFloat && format.BitsPerSample == 32)
+            int stride = format.BitsPerSample / 8;
+            if (stride != 2 && stride != 4) return;
+            int channels = Math.Max(1, format.Channels);
+            int frames = Math.Min(fftSize, e.BytesRecorded / (stride * channels));
+            for (int frame = 0; frame < frames; frame++)
             {
-                for (int i = 0; i + 4 <= e.BytesRecorded; i += 4)
-                {
-                    float sample = BitConverter.ToSingle(e.Buffer, i);
-                    if (float.IsFinite(sample)) { sum += sample * sample; count++; }
-                }
-            }
-            else if (format.BitsPerSample == 16)
-            {
-                for (int i = 0; i + 2 <= e.BytesRecorded; i += 2)
-                {
-                    float sample = BitConverter.ToInt16(e.Buffer, i) / 32768f;
-                    sum += sample * sample; count++;
-                }
+                int offset = frame * stride * channels;
+                float sample = stride == 4
+                    ? BitConverter.ToSingle(e.Buffer, offset)
+                    : BitConverter.ToInt16(e.Buffer, offset) / 32768f;
+                if (!float.IsFinite(sample)) sample = 0;
+                sum += sample * sample;
+                count++;
+                float window = .5f * (1 - MathF.Cos(2 * MathF.PI * frame / (fftSize - 1)));
+                fft[frame].X = sample * window;
+                fft[frame].Y = 0;
             }
             level = count == 0 ? 0 : Math.Clamp((float)Math.Sqrt(sum / count) * 5f, 0, 1);
+            if (frames < fftSize) return;
+            NAudio.Dsp.FastFourierTransform.FFT(true, 10, fft);
+            var next = new float[64];
+            for (int band = 0; band < next.Length; band++)
+            {
+                int lo = Math.Max(1, (int)MathF.Pow(512, band / 64f));
+                int hi = Math.Min(512, Math.Max(lo + 1, (int)MathF.Pow(512, (band + 1) / 64f)));
+                float peak = 0;
+                for (int bin = lo; bin < hi; bin++)
+                {
+                    float magnitude = MathF.Sqrt(fft[bin].X * fft[bin].X + fft[bin].Y * fft[bin].Y);
+                    peak = Math.Max(peak, magnitude);
+                }
+                next[band] = Math.Clamp(peak / 12f, 0, 1);
+            }
+            Volatile.Write(ref bands, next);
         };
         capture.StartRecording();
     }
@@ -163,13 +184,13 @@ internal sealed class WallpaperForm : Form
             g.DrawRectangle(pen, cx - size / 2, cy - size / 2, size, size);
         }
         int bars = 64;
+        var spectrum = audio.Bands;
         float bandY = Height - Math.Max(30, Height * .08f);
         float bandW = Width * .7f, x0 = (Width - bandW) / 2;
         using var brush = new SolidBrush(Color.FromArgb(170, 53, 218, 255));
         for (int i = 0; i < bars; i++)
         {
-            float wave = .2f + .8f * Math.Abs(MathF.Sin(i * .31f + phase * 4));
-            float h = 3 + energy * wave * Math.Min(100, Height * .15f);
+            float h = 3 + spectrum[i] * settings.Strength * Math.Min(100, Height * .15f);
             g.FillRectangle(brush, x0 + i * bandW / bars, bandY - h, bandW / bars * .55f, h);
         }
     }
