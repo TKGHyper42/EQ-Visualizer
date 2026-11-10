@@ -33,6 +33,13 @@ internal static class SmokeTest
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
             Step("Capturing settings form");
+            using(var number=new UiNumber{Minimum=0,Maximum=10,Increment=.25m,DecimalPlaces=0,Value=2.5m})
+            {
+                if(number.Value!=2.5m)throw new InvalidOperationException("Numeric field rounded an untouched setting.");
+                var entry=number.Controls.OfType<TextBox>().Single();entry.Text="7";
+                if(number.Value!=7)throw new InvalidOperationException("Numeric field did not accept typed input.");
+                entry.Text="999";if(number.Value!=10)throw new InvalidOperationException("Numeric field exceeded its limit.");
+            }
             var values = new Settings();
             var before = System.Text.Json.JsonSerializer.Serialize(values);
             using var settings = new SettingsForm(values);
