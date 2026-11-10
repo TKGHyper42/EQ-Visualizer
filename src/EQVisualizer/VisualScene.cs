@@ -24,7 +24,8 @@ internal sealed class VisualScene
     private float width, height;
     public ReadOnlySpan<GpuVertex> Vertices => vertices.AsSpan(0, count);
     public void BuildIdle(float viewWidth, float viewHeight, float coverSize, Vector2 center,
-        bool showImage, bool showClock, ReadOnlySpan<ShadeRegion> shades = default)
+        bool showImage, bool showClock, IdleClockStyle clockStyle = IdleClockStyle.Digital,
+        ReadOnlySpan<ShadeRegion> shades = default)
     {
         count = 0; width = Math.Max(1, viewWidth); height = Math.Max(1, viewHeight);
         Quad(width / 2, height / 2, width, height, new(.055f, .058f, .065f, 1), false);
@@ -41,10 +42,13 @@ internal sealed class VisualScene
         }
         if (showClock)
         {
-            float w = unit * (showImage ? .55f : .75f), h = w / 8;
+            bool analog = clockStyle == IdleClockStyle.Analog;
+            float w = unit * (analog ? showImage ? .28f : .46f : showImage ? .55f : .68f);
+            float h = analog ? w : w * 240 / 768;
+            float clockX = analog && showImage ? cx + size / 2 + w / 2 + unit * .03f : cx;
+            float clockY = analog || !showImage ? cy : cy + size / 2 + unit * .025f + h / 2;
             int first = count;
-            Quad(cx, showImage ? cy + size / 2 + unit * .025f + h / 2 : cy,
-                w, h, Vector4.One, true);
+            Quad(clockX, clockY, w, h, Vector4.One, true);
             for (int i = first; i < count; i++) vertices[i].Textured = 2;
         }
         foreach (var region in shades)

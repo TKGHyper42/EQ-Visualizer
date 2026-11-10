@@ -70,6 +70,10 @@ Check(scene.Vertices.ToArray().Count(v=>v.Textured==1)==6 && scene.Vertices.ToAr
 scene.BuildIdle(1280,720,.36f,new(.5f,.5f),true,true);
 Check(scene.Vertices.ToArray().Count(v=>v.Textured==1)==6 && scene.Vertices.ToArray().Count(v=>v.Textured==2)==6,"Combined fallback renders image and clock");
 Check(IdleMode.ImageAndClock.HasImage() && IdleMode.ImageAndClock.HasClock() && !IdleMode.Off.HasClock(),"Fallback choices remain independent");
+scene.BuildIdle(960,540,.36f,new(.5f,.48f),false,true,IdleClockStyle.Analog);
+var analogClock=scene.Vertices.ToArray().Where(v=>v.Textured==2).ToArray();
+Check(analogClock.Length==6 && MathF.Abs((analogClock.Max(v=>v.Position.X)-analogClock.Min(v=>v.Position.X))*960/2 -
+    (analogClock.Max(v=>v.Position.Y)-analogClock.Min(v=>v.Position.Y))*540/2)<2,"Analog clock keeps a round aspect ratio");
 foreach(var theme in Enum.GetValues<InterfaceTheme>())
 {
     var palette=InterfacePalettes.For(theme);

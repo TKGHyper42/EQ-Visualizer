@@ -31,7 +31,7 @@ Todo se integra detrás de tus iconos, para que puedas seguir usando tu escritor
 - **Una interfaz muy tuya.** Explora temas claros y oscuros, elige el color de acento y ajusta la transparencia de la ventana de ajustes.
 - **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
 - **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
-- **También cuando hay silencio.** Si no hay sesión musical, puedes mostrar un reloj, una imagen de tu equipo o ambos.
+- **También cuando hay silencio.** Si no hay sesión musical, puedes mostrar un reloj digital redondeado o analógico circular, una imagen de tu equipo o ambos.
 - **Una pausa cuando hace falta.** La animación descansa cuando el escritorio queda cubierto y vuelve cuando lo necesitas.
 
 ## 🚀 Empieza a escuchar

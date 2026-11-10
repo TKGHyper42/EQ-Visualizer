@@ -89,11 +89,13 @@ internal sealed class WallpaperForm : Form
     private void UpdateClock()
     {
         if (hasMusicSession || !settings.NoSessionMode.HasClock()) return;
-        string next = DateTime.Now.ToString("HH:mm | dddd d MMMM", System.Globalization.CultureInfo.CurrentCulture);
+        string next = DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + settings.ClockStyle;
         if (next == clockText) return;
         clockText = next;
         caption?.Dispose();
-        caption = TrackCaption.Create(DateTime.Now.ToString("HH:mm"), DateTime.Now.ToString("dddd, d MMMM", System.Globalization.CultureInfo.CurrentCulture));
+        var accent = artwork is null ? Ui.Accent : Color.FromArgb(
+            (int)(Math.Clamp(primary.X, 0, 1) * 255), (int)(Math.Clamp(primary.Y, 0, 1) * 255), (int)(Math.Clamp(primary.Z, 0, 1) * 255));
+        caption = ClockFace.Create(DateTime.Now, settings.ClockStyle, accent);
         try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
     }
     public void SetShades(Rectangle[] rectangles)
@@ -149,7 +151,7 @@ internal sealed class WallpaperForm : Form
         var region = settings.ContrastMode == ContrastMode.WholeImage ? new[] { new ShadeRegion(0, 0, Width, Height) } : settings.ContrastMode == ContrastMode.Adaptive ? shades : [];
         if (!hasMusicSession)
             scene.BuildIdle(Width, Height, settings.CoverSize, new(settings.PositionX, settings.PositionY),
-                settings.NoSessionMode.HasImage() && artwork is not null, settings.NoSessionMode.HasClock() && caption is not null, region);
+                settings.NoSessionMode.HasImage() && artwork is not null, settings.NoSessionMode.HasClock() && caption is not null, settings.ClockStyle, region);
         else
         {
         float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);

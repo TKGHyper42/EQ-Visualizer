@@ -12,6 +12,7 @@ internal sealed class SettingsForm : ModernForm
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
     private readonly UiSelect idleMode = Choices("Ocultar wallpaper", "Reloj", "Imagen personalizada", "Imagen y reloj");
+    private readonly UiSelect clockStyle = Choices("Digital redondeado", "Analógico circular");
     private readonly UiSelect interfaceTheme = Choices("Carbón · oscuro", "Grafito · oscuro", "Ciruela · oscuro", "Bosque · oscuro",
         "Perla · claro", "Arena · claro", "Bruma · claro", "Rosa · claro");
     private readonly TextBox idlePath = new() { BorderStyle = BorderStyle.None, BackColor = Ui.Elevated, ForeColor = Ui.Text, ReadOnly = true };
@@ -75,6 +76,7 @@ internal sealed class SettingsForm : ModernForm
         Number(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
         Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = (int)settings.ContrastMode;
         Row(appearance, "Cuando no hay sesión", idleMode); idleMode.SelectedIndex = (int)settings.NoSessionMode;
+        Row(appearance, "Estilo de reloj", clockStyle); clockStyle.SelectedIndex = (int)settings.ClockStyle;
         var idleFile = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Elevated };
         var browse = new UiButton { Text = "Elegir…", Dock = DockStyle.Right, Width = 94 };
         idlePath.Text = settings.NoSessionImagePath ?? "";
@@ -144,6 +146,7 @@ internal sealed class SettingsForm : ModernForm
         previewIdle.Checked = settings.NoSessionMode != IdleMode.Off && artwork is null;
         previewIdle.CheckedChanged += (_, _) => UpdatePreview();
         idleMode.SelectedIndexChanged += (_, _) => UpdatePreview();
+        clockStyle.SelectedIndexChanged += (_, _) => UpdatePreview();
         idlePath.TextChanged += (_, _) => UpdatePreview();
         interfaceTheme.SelectedIndexChanged += (_, _) =>
         {
@@ -190,7 +193,8 @@ internal sealed class SettingsForm : ModernForm
             N("strength") / 100, N("sensitivity"), N("thickness") / 100,
             (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
             (ContrastMode)Math.Max(0, contrast.SelectedIndex), (IdleMode)Math.Max(0, idleMode.SelectedIndex),
-            previewIdle.Checked, idlePath.Text, (InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex)));
+            previewIdle.Checked, idlePath.Text, (InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex),
+            (IdleClockStyle)Math.Max(0, clockStyle.SelectedIndex)));
         WindowOpacity = N("opacity") / 100d;
         if (IsHandleCreated) Opacity = WindowOpacity;
     }
@@ -253,6 +257,7 @@ internal sealed class SettingsForm : ModernForm
             settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
             settings.InterfaceOpacity = (int)N("opacity");
             settings.NoSessionMode = (IdleMode)idleMode.SelectedIndex;
+            settings.ClockStyle = (IdleClockStyle)clockStyle.SelectedIndex;
             settings.NoSessionImagePath = string.IsNullOrWhiteSpace(idlePath.Text) ? null : idlePath.Text;
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;

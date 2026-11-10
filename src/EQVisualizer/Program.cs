@@ -76,6 +76,7 @@ internal sealed class Settings
     public int InterfaceAccent { get; set; }
     public int InterfaceOpacity { get; set; } = 96;
     public IdleMode NoSessionMode { get; set; } = IdleMode.Off;
+    public IdleClockStyle ClockStyle { get; set; } = IdleClockStyle.Digital;
     public string? NoSessionImagePath { get; set; }
 }
 
@@ -118,6 +119,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
         if (!Enum.IsDefined(settings.NoSessionMode)) settings.NoSessionMode = IdleMode.Off;
+        if (!Enum.IsDefined(settings.ClockStyle)) settings.ClockStyle = IdleClockStyle.Digital;
         if (!Enum.IsDefined(settings.InterfaceTheme)) settings.InterfaceTheme = InterfaceTheme.Carbon;
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };

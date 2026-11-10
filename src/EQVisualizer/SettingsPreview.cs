@@ -7,7 +7,7 @@ namespace EQVisualizer;
 internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverSize, float X, float Y,
     float Margin, float Strength, float Sensitivity, float Thickness, int Layers, bool Tunnel,
     bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
-    bool PreviewIdle, string? IdlePath, InterfaceTheme Theme);
+    bool PreviewIdle, string? IdlePath, InterfaceTheme Theme, IdleClockStyle ClockStyle);
 
 // Uses the same scene geometry as the wallpaper. The spectrum is deliberately simulated.
 internal sealed class SettingsPreview : Control
@@ -17,8 +17,9 @@ internal sealed class SettingsPreview : Control
     private readonly bool sampleArtwork;
     private readonly float[] spectrum = new float[64];
     private readonly Bitmap caption = TrackCaption.Create("Vista previa", "EQ Visualizer")!;
-    private readonly Bitmap clockCaption = TrackCaption.Create(DateTime.Now.ToString("HH:mm"),
-        DateTime.Now.ToString("dddd, d MMMM", System.Globalization.CultureInfo.CurrentCulture))!;
+    private Bitmap? clockCaption;
+    private IdleClockStyle cachedClockStyle = (IdleClockStyle)(-1);
+    private Color cachedClockAccent;
     private Image? idleArtwork;
     private string? cachedIdlePath;
     private Bitmap? backdrop;
@@ -51,6 +52,11 @@ internal sealed class SettingsPreview : Control
         }
         if (cachedBlur != value.Blur || options.PreviewIdle != value.PreviewIdle ||
             options.IdlePath != value.IdlePath) { backdrop?.Dispose(); backdrop = null; cachedBlur = -1; }
+        if (clockCaption is null || cachedClockStyle != value.ClockStyle || cachedClockAccent != value.Accent)
+        {
+            clockCaption?.Dispose(); clockCaption = ClockFace.Create(DateTime.Now, value.ClockStyle, value.Accent);
+            cachedClockStyle = value.ClockStyle; cachedClockAccent = value.Accent;
+        }
         options = value; Invalidate();
     }
 
@@ -93,7 +99,7 @@ internal sealed class SettingsPreview : Control
         }
         if (options.PreviewIdle)
             scene.BuildIdle(canvas.Width, canvas.Height, options.CoverSize, new(options.X, options.Y),
-                idleImage, options.IdleMode.HasClock());
+                idleImage, options.IdleMode.HasClock(), options.ClockStyle);
         else
         {
             float bottom = Math.Clamp(.96f - options.Margin, .2f, .98f);
@@ -158,5 +164,5 @@ internal sealed class SettingsPreview : Control
     }
 
     protected override void Dispose(bool disposing)
-    { if (disposing) { artwork.Dispose(); idleArtwork?.Dispose(); backdrop?.Dispose(); caption.Dispose(); clockCaption.Dispose(); } base.Dispose(disposing); }
+    { if (disposing) { artwork.Dispose(); idleArtwork?.Dispose(); backdrop?.Dispose(); caption.Dispose(); clockCaption?.Dispose(); } base.Dispose(disposing); }
 }

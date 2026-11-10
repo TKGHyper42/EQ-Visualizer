@@ -62,7 +62,8 @@ jobs:
               Copy-Item $_.FullName $target
             }
           }
-          Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256 | Format-List | Out-String | Set-Content "$destination/SHA256.txt"
+          $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: EQVisualizer-${{ matrix.arch }}
