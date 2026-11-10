@@ -86,7 +86,7 @@ jobs:
 
   private-assets:
     needs: build
-    if: github.event_name == 'push' && github.repository == 'TKGHyper42/EQ-Visualizer' && github.event.repository.private && contains(github.event.head_commit.message, '[private-build]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && github.repository == 'TKGHyper42/EQ-Visualizer' && github.event.repository.private && contains(github.event.head_commit.message, '[private-build]')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
