@@ -2,6 +2,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using NAudio.Wave;
+using NAudio.CoreAudioApi;
 
 namespace EQVisualizer;
 
@@ -20,6 +21,7 @@ internal sealed class Settings
     public int Fps { get; set; } = 45;
     public float Strength { get; set; } = 1f;
     public bool Enabled { get; set; } = true;
+    public string? AudioDeviceId { get; set; }
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -45,10 +47,23 @@ internal sealed class WallpaperContext : ApplicationContext
         menu.Items.Add("60 FPS", null, (_, _) => SetFps(60));
         menu.Items.Add("Menos intensidad", null, (_, _) => SetStrength(settings.Strength - .25f));
         menu.Items.Add("Más intensidad", null, (_, _) => SetStrength(settings.Strength + .25f));
+        var deviceMenu = new ToolStripMenuItem("Salida de audio");
+        deviceMenu.DropDownItems.Add("Predeterminada", null, (_, _) => SetDevice(null));
+        try
+        {
+            using var endpoints = new MMDeviceEnumerator();
+            foreach (var device in endpoints.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            {
+                string id = device.ID;
+                deviceMenu.DropDownItems.Add(device.FriendlyName, null, (_, _) => SetDevice(id));
+            }
+        }
+        catch { deviceMenu.Enabled = false; }
+        menu.Items.Add(deviceMenu);
         menu.Items.Add("Salir", null, (_, _) => ExitThread());
         tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "EQ Visualizer (prototipo)", ContextMenuStrip = menu, Visible = true };
         tray.DoubleClick += (_, _) => Toggle();
-        try { audio.Start(); }
+        try { audio.Start(settings.AudioDeviceId); }
         catch (Exception e) { tray.ShowBalloonTip(4000, "EQ Visualizer", "Captura de audio no disponible: " + e.Message, ToolTipIcon.Warning); }
         foreach (var screen in Screen.AllScreens)
         {
@@ -64,6 +79,16 @@ internal sealed class WallpaperContext : ApplicationContext
     private void Toggle() { settings.Enabled = !settings.Enabled; Save(); foreach (var f in forms) f.RefreshState(); }
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
     private void SetStrength(float strength) { settings.Strength = Math.Clamp(strength, 0, 3); Save(); }
+    private void SetDevice(string? id)
+    {
+        string? previous = settings.AudioDeviceId;
+        try { audio.Start(id); settings.AudioDeviceId = id; Save(); }
+        catch (Exception e)
+        {
+            tray.ShowBalloonTip(4000, "EQ Visualizer", "Dispositivo no disponible: " + e.Message, ToolTipIcon.Warning);
+            try { audio.Start(previous); } catch { }
+        }
+    }
     private void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
@@ -87,12 +112,18 @@ internal sealed class AudioLevel : IDisposable
     public float Level => level;
     public float[] Bands => Volatile.Read(ref bands);
 
-    public void Start()
+    public void Start(string? deviceId)
     {
-        capture = new WasapiLoopbackCapture();
-        capture.DataAvailable += (_, e) =>
+        capture?.StopRecording();
+        capture?.Dispose();
+        level = 0;
+        Volatile.Write(ref bands, new float[64]);
+        using var endpoints = new MMDeviceEnumerator();
+        var source = deviceId is null ? new WasapiLoopbackCapture() : new WasapiLoopbackCapture(endpoints.GetDevice(deviceId));
+        capture = source;
+        source.DataAvailable += (_, e) =>
         {
-            var format = capture.WaveFormat;
+            var format = source.WaveFormat;
             const int fftSize = 1024;
             var fft = new NAudio.Dsp.Complex[fftSize];
             double sum = 0;
@@ -132,7 +163,7 @@ internal sealed class AudioLevel : IDisposable
             }
             Volatile.Write(ref bands, next);
         };
-        capture.StartRecording();
+        source.StartRecording();
     }
     public void Dispose() { capture?.StopRecording(); capture?.Dispose(); }
 }
