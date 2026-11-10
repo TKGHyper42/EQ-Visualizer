@@ -53,6 +53,7 @@ internal sealed class Settings
     public Keys EffectsHotkeyKey { get; set; } = Keys.E;
     public bool ShowTrackInfo { get; set; }
     public float BarThickness { get; set; } = 1.6f;
+    public float BackgroundBlur { get; set; } = 35;
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -90,6 +91,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.PositionY = Math.Clamp(settings.PositionY, .1f, .9f);
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
+        settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());

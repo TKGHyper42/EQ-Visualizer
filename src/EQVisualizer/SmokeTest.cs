@@ -26,6 +26,7 @@ internal static class SmokeTest
             renderer.SetArtwork(cover);
             using var info = TrackCaption.Create("Demo track", "EQ Visualizer");
             renderer.SetCaption(info);
+            using var backdrop = BackdropImage.Create(cover, 35); renderer.SetBackground(backdrop);
             var scene = new VisualScene();
             var spectrum = Enumerable.Range(0, 64).Select(i => .25f + .25f * MathF.Sin(i * .3f)).ToArray();
             scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, true, true, .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
@@ -40,6 +41,7 @@ internal static class SmokeTest
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
             renderer.SetCaption(null); renderer.Render([]); renderer.SetCaption(info); renderer.Render(scene.Vertices);
+            using var clearBackdrop = BackdropImage.Create(cover, 0); renderer.SetBackground(clearBackdrop); renderer.Render(scene.Vertices); renderer.SetBackground(backdrop);
             Step("Capturing settings form");
             using (var number = new UiNumber { Minimum = 0, Maximum = 10, Increment = .25m, DecimalPlaces = 0, Value = 2.5m })
             {

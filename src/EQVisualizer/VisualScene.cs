@@ -29,6 +29,7 @@ internal sealed class VisualScene
         float unit = Math.Min(width, height), cx = o.Center.X * width, cy = o.Center.Y * height;
         float background = Math.Max(width, height) * 1.12f;
         Quad(width / 2, height / 2, background, background, new(.2f, .2f, .2f, 1), true);
+        for (int i = 0; i < count; i++) vertices[i].Textured = 3;
         if (o.Tunnel)
         {
             int layers = Math.Clamp(o.Layers, 3, 12);
@@ -47,17 +48,25 @@ internal sealed class VisualScene
         {
             float signal = Math.Clamp(spectrum[i] * o.Sensitivity, 0, 1);
             var color = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1)); color.W = .9f;
+            var tip = Vector4.Lerp(o.Secondary, new Vector4(1, 1, 1, 1), .22f); tip.W = .98f;
             if (o.Bottom)
             {
                 float bw = width * .72f, h = 2 + signal * unit * .16f * o.Intensity;
-                Quad(width * .14f + (i + .5f) * bw / spectrum.Length, height * o.BottomY - h / 2, bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f), h, color, false);
+                float x = width * .14f + (i + .5f) * bw / spectrum.Length, y = height * o.BottomY - h / 2, w = bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f);
+                Quad(x, y, w + 2, h + 2, new(0, 0, 0, .7f), false);
+                int first = count; Quad(x, y, w, h, color, false);
+                vertices[first].Color = tip; vertices[first + 1].Color = tip; vertices[first + 3].Color = tip;
             }
             if (o.Ring)
             {
                 float angle = MathF.Tau * i / Math.Max(1, spectrum.Length) - MathF.PI / 2, radius = cover * .76f;
                 var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
                 var start = new Vector2(cx, cy) + direction * radius;
-                Line(start, start + direction * (2 + signal * unit * .12f * o.Intensity), Math.Max(2, unit * .0035f) * o.BarThickness, color);
+                var end = start + direction * (2 + signal * unit * .12f * o.Intensity);
+                float thickness = Math.Max(2, unit * .0035f) * o.BarThickness;
+                Line(start, end, thickness + 2, new(0, 0, 0, .7f));
+                int first = count; Line(start, end, thickness, color);
+                vertices[first + 2].Color = tip; vertices[first + 4].Color = tip; vertices[first + 5].Color = tip;
             }
         }
         if (o.ShowTrackInfo)

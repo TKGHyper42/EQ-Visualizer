@@ -25,6 +25,8 @@ En **Visualizador** elige **Solo círculo**, **Solo franja inferior** o **Círcu
 
 Activa **Portada → Información de la canción** para mostrar título y artista bajo la portada. Los datos proceden de la sesión musical y permanecen solo en memoria; no se incluyen canciones, portadas o nombres reales como recursos de la aplicación. **Audio → Grosor de barras** permite ajustar el ancho del círculo y de la franja entre 50 % y 300 %. El valor inicial es 160 % para mejorar su visibilidad.
 
+Las barras usan un degradado con colores dominantes de la portada, realzados para mejorar el contraste y con contorno oscuro local. Las portadas monocromas mantienen una paleta neutra. **Movimiento → Desenfoque del fondo** ajusta el blur entre 0 % y 100 %; 0 % lo desactiva. Solo se desenfoca la copia de fondo, conservando la portada principal y el texto nítidos. El fondo se recalcula cuando cambia la portada o este ajuste, evitando un filtro de blur continuo por fotograma.
+
 - `Ctrl + Alt + V`: activar o desactivar el wallpaper.
 - `Ctrl + Alt + E`: alternar túnel y paralaje.
 - Ambos atajos y sus modificadores se pueden cambiar.

@@ -16,6 +16,7 @@ struct PixelInput
 
 Texture2D coverTexture : register(t0);
 Texture2D captionTexture : register(t1);
+Texture2D backgroundTexture : register(t2);
 SamplerState linearSampler : register(s0);
 
 PixelInput VSMain(VertexInput input)
@@ -30,7 +31,9 @@ PixelInput VSMain(VertexInput input)
 
 float4 PSMain(PixelInput input) : SV_TARGET
 {
-    float4 source = input.textured > 1.5f
+    float4 source = input.textured > 2.5f
+        ? backgroundTexture.Sample(linearSampler,input.uv)
+        : input.textured > 1.5f
         ? captionTexture.Sample(linearSampler, input.uv)
         : input.textured > 0.5f ? coverTexture.Sample(linearSampler, input.uv)
         : float4(1.0f, 1.0f, 1.0f, 1.0f);

@@ -46,7 +46,7 @@ int baseVertices=scene.Vertices.Length;
 foreach(var mode in VisualizerModes.All)
 {
     scene.Build(baseOptions with{Ring=mode.HasCircle(),Bottom=mode.HasBottom()},high.Spectrum,[]);
-    int expected=baseVertices+64*6*(mode==VisualizerMode.Both?2:1);
+    int expected=baseVertices+64*12*(mode==VisualizerMode.Both?2:1);
     Check(scene.Vertices.Length==expected,"Independent visualizer geometry: "+mode.Label());
     var bars=scene.Vertices[baseVertices..].ToArray();
     if(mode==VisualizerMode.Bottom)Check(bars.All(v=>v.Position.Y<-.45f),"Bottom-only mode contains no circle bars");
@@ -54,12 +54,24 @@ foreach(var mode in VisualizerModes.All)
     Check(System.Text.Json.JsonSerializer.Deserialize<VisualizerMode>(((int)mode).ToString())==mode,"Existing numeric settings remain compatible");
 }
 scene.Build(baseOptions with{Ring=true,BarThickness=.5f},high.Spectrum,[]);
-float thin=Vector2.Distance(scene.Vertices[baseVertices].Position,scene.Vertices[baseVertices+1].Position);
+float thin=Vector2.Distance(scene.Vertices[baseVertices+6].Position,scene.Vertices[baseVertices+7].Position);
 int count=scene.Vertices.Length;
 scene.Build(baseOptions with{Ring=true,BarThickness=3},high.Spectrum,[]);
-float thick=Vector2.Distance(scene.Vertices[baseVertices].Position,scene.Vertices[baseVertices+1].Position);
+float thick=Vector2.Distance(scene.Vertices[baseVertices+6].Position,scene.Vertices[baseVertices+7].Position);
 Check(thick>thin*5.9f && scene.Vertices.Length==count,"Bar thickness changes width without increasing geometry cost");
 scene.Build(baseOptions with{ShowTrackInfo=true},high.Spectrum,[]);
 Check(scene.Vertices.Length==baseVertices+6 && scene.Vertices[^1].Textured==2,"Optional track information uses its own texture quad");
 scene.Build(baseOptions with{ShowTrackInfo=false},high.Spectrum,[]);
 Check(scene.Vertices.ToArray().All(v=>v.Textured!=2),"Track information is removed completely when disabled");
+var warm=ArtworkPalette.Create([new(.8f,.7f,.6f),new(.7f,.6f,.5f)]);
+Check(warm.Primary.X>warm.Primary.Z && warm.Primary.X>=.95f,"Warm cover keeps a bright warm spectrum");
+var blue=ArtworkPalette.Create([new(.1f,.2f,.7f),new(.2f,.3f,.8f)]);
+Check(blue.Primary.Z>blue.Primary.X && blue.Primary.Z>=.95f,"Blue cover keeps a bright blue spectrum");
+var neutral=ArtworkPalette.Create([new(.3f,.3f,.3f)]);
+Check(MathF.Abs(neutral.Primary.X-neutral.Primary.Y)<.1f,"Monochrome artwork keeps neutral contrast colors");
+byte[] solid=Enumerable.Repeat((byte)128,9*9*4).ToArray();BackdropBlur.Apply(solid,9,9,3);
+Check(solid.All(v=>v==128),"Blur preserves constant colors and handles clamped edges");
+byte[] impulse=new byte[9*9*4];impulse[(4*9+4)*4]=255;
+var original=impulse.ToArray();BackdropBlur.Apply(impulse,9,9,0);Check(impulse.SequenceEqual(original),"Zero blur leaves pixels unchanged");
+BackdropBlur.Apply(impulse,9,9,1);
+Check(impulse[(4*9+4)*4]<255 && impulse.Where((v,i)=>i%4==0).Count(v=>v>0)>1,"Blur spreads detail rather than replacing the image");

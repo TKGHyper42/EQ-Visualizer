@@ -4,6 +4,8 @@
     <Compile Include="../../src/EQVisualizer/AudioAnalyzer.cs" Link="AudioAnalyzer.cs" />
     <Compile Include="../../src/EQVisualizer/VisualScene.cs" Link="VisualScene.cs" />
     <Compile Include="../../src/EQVisualizer/VisualizerMode.cs" Link="VisualizerMode.cs" />
+    <Compile Include="../../src/EQVisualizer/ArtworkPalette.cs" Link="ArtworkPalette.cs" />
+    <Compile Include="../../src/EQVisualizer/BackdropBlur.cs" Link="BackdropBlur.cs" />
     <PackageReference Include="NAudio.Core" Version="2.2.1" />
   </ItemGroup>
 </Project>

@@ -19,6 +19,8 @@ internal sealed class WallpaperForm : Form
     private Image? artwork;
     private Bitmap? brightnessSample;
     private Bitmap? caption;
+    private Bitmap? backdrop;
+    private float appliedBlur = -1;
     private string title = "", artist = "";
     private D3D11Renderer? renderer;
     private Vector2 pointer;
@@ -53,13 +55,15 @@ internal sealed class WallpaperForm : Form
     {
         this.title = title; this.artist = artist;
         caption?.Dispose(); caption = null;
-        try { renderer?.SetCaption(null); } catch { DropRenderer(); }
+        backdrop?.Dispose(); backdrop = null;
+        try { renderer?.SetCaption(null); renderer?.SetBackground(null); } catch { DropRenderer(); }
         artwork?.Dispose(); artwork = image is null ? null : new Bitmap(image);
         brightnessSample?.Dispose(); brightnessSample = artwork is null ? null : new Bitmap(artwork, 16, 16);
         if (artwork is not null)
         {
-            using var tiny = new Bitmap(artwork, 2, 1);
-            primary = ToVector(tiny.GetPixel(0, 0)); secondary = ToVector(tiny.GetPixel(1, 0));
+            using var tiny = new Bitmap(artwork, 32, 32); var samples = new Vector3[1024];
+            for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) { var c = tiny.GetPixel(x, y); samples[y * 32 + x] = new(c.R / 255f, c.G / 255f, c.B / 255f); }
+            (primary, secondary) = ArtworkPalette.Create(samples);
         }
         try { renderer?.SetArtwork(artwork); } catch { DropRenderer(); }
         isPlaying = playing; RefreshState(true);
@@ -83,7 +87,7 @@ internal sealed class WallpaperForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        try { renderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); renderer.SetArtwork(artwork); renderer.SetCaption(caption); } catch { DropRenderer(); }
+        try { renderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); renderer.SetArtwork(artwork); renderer.SetCaption(caption); renderer.SetBackground(backdrop); } catch { DropRenderer(); }
     }
     protected override void OnHandleDestroyed(EventArgs e) { DropRenderer(); base.OnHandleDestroyed(e); }
     protected override void OnPaintBackground(PaintEventArgs e) { }
@@ -103,6 +107,11 @@ internal sealed class WallpaperForm : Form
     protected override void OnPaint(PaintEventArgs e)
     {
         if (artwork is null || !settings.Enabled || systemPaused || covered) return;
+        if (backdrop is null || appliedBlur != settings.BackgroundBlur)
+        {
+            backdrop?.Dispose(); backdrop = BackdropImage.Create(artwork, settings.BackgroundBlur); appliedBlur = settings.BackgroundBlur;
+            try { renderer?.SetBackground(backdrop); } catch { DropRenderer(); }
+        }
         if (settings.ShowTrackInfo && caption is null && !(string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)))
         {
             caption = TrackCaption.Create(title, artist);
@@ -135,7 +144,7 @@ internal sealed class WallpaperForm : Form
             var a = vertices[i]; var b = vertices[i + 1]; var c = vertices[i + 2]; var d = vertices[i + 5];
             if (a.Textured > .5f)
             {
-                var image = a.Textured > 1.5f ? caption : artwork;
+                var image = a.Textured > 2.5f ? backdrop : a.Textured > 1.5f ? caption : artwork;
                 if (image is null) continue;
                 using var attr = new ImageAttributes(); attr.SetColorMatrix(new ColorMatrix
                 { Matrix00 = a.Color.X, Matrix11 = a.Color.Y, Matrix22 = a.Color.Z, Matrix33 = a.Color.W, Matrix44 = 1 });
@@ -144,7 +153,9 @@ internal sealed class WallpaperForm : Form
             else
             {
                 var v = Vector4.Clamp(a.Color, Vector4.Zero, Vector4.One);
-                using var brush = new SolidBrush(Color.FromArgb((int)(v.W * 255), (int)(v.X * 255), (int)(v.Y * 255), (int)(v.Z * 255)));
+                Color ColorOf(Vector4 color) => Color.FromArgb((int)(color.W * 255), (int)(color.X * 255), (int)(color.Y * 255), (int)(color.Z * 255));
+                var p1 = Pixel((a.Position + b.Position) / 2); var p2 = Pixel((c.Position + d.Position) / 2);
+                using Brush brush = a.Color == c.Color ? new SolidBrush(ColorOf(v)) : new LinearGradientBrush(p1, p2, ColorOf(v), ColorOf(Vector4.Clamp(c.Color, Vector4.Zero, Vector4.One)));
                 g.FillPolygon(brush, [Pixel(a.Position), Pixel(b.Position), Pixel(c.Position), Pixel(d.Position)]);
             }
         }
@@ -152,5 +163,5 @@ internal sealed class WallpaperForm : Form
     private void DropRenderer() { renderer?.Dispose(); renderer = null; DoubleBuffered = true; }
     private static Vector4 ToVector(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f, 1);
     protected override void Dispose(bool disposing)
-    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); caption?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
+    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); caption?.Dispose(); backdrop?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
 }

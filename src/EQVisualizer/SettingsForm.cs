@@ -66,6 +66,7 @@ internal sealed class SettingsForm : ModernForm
         tunnel.Checked = settings.EnableTunnel; parallax.Checked = settings.EnableParallax;
         Row(motion, "Profundidad", tunnel); Row(motion, "Paralaje", parallax);
         Number(motion, "Intensidad de paralaje (%)", "parallax", settings.ParallaxStrength * 100, 0, 300);
+        Number(motion, "Desenfoque del fondo (%)", "blur", settings.BackgroundBlur, 0, 100, 5);
         Hint(motion, "Puedes desactivar cada efecto y conservar la portada. La animación se pausa al detener la música, bloquear la sesión o cubrir el monitor con una ventana maximizada o fullscreen.");
 
         var performance = Page("Rendimiento", "Encuentra el equilibrio para tu equipo.");
@@ -155,6 +156,7 @@ internal sealed class SettingsForm : ModernForm
             float N(string name) => (float)numbers[name].Value;
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
             settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
+            settings.BackgroundBlur = N("blur");
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
             settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;
