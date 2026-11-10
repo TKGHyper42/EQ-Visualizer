@@ -33,19 +33,27 @@ internal static class SmokeTest
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
             Step("Capturing settings form");
-            using var settings = new SettingsForm(new Settings());
+            var values = new Settings();
+            var before = System.Text.Json.JsonSerializer.Serialize(values);
+            using var settings = new SettingsForm(values);
             settings.Show(); Application.DoEvents();
             using var screenshot = new Bitmap(settings.Width, settings.Height);
             settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
             screenshot.Save(Path.Combine(directory, "settings.png"), System.Drawing.Imaging.ImageFormat.Png);
-            var tabs = settings.Controls.OfType<TabControl>().Single();
-            for (int i = 0; i < tabs.TabPages.Count; i++)
+            for (int i = 0; i < settings.SectionCount; i++)
             {
-                tabs.SelectedIndex = i; Application.DoEvents();
+                settings.SelectSection(i); Application.DoEvents();
                 settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
                 screenshot.Save(Path.Combine(directory, $"settings-{i}.png"), System.Drawing.Imaging.ImageFormat.Png);
             }
-            settings.Close();
+            settings.DialogResult = DialogResult.OK; settings.Close();
+            if (System.Text.Json.JsonSerializer.Serialize(values) != before) throw new InvalidOperationException("Settings changed without an edit.");
+            using var welcome = new WelcomeForm(new Settings());
+            welcome.Show(); Application.DoEvents();
+            using var welcomeImage = new Bitmap(welcome.Width, welcome.Height);
+            welcome.DrawToBitmap(welcomeImage, new Rectangle(Point.Empty, welcomeImage.Size));
+            welcomeImage.Save(Path.Combine(directory, "welcome.png"), System.Drawing.Imaging.ImageFormat.Png);
+            welcome.Close();
             File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: embedded shaders, texture upload, draw, resize, artwork removal/reload. Renderer: " + (renderer.UsesSoftware ? "WARP" : "hardware") + ". Desktop integration and real audio not exercised.");
             Step("Completed");
             return 0;
