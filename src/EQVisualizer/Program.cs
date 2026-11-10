@@ -4,6 +4,7 @@ using System.Text.Json;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 using Microsoft.Win32;
+using Vortice.Mathematics;
 
 namespace EQVisualizer;
 
@@ -303,6 +304,7 @@ internal sealed class WallpaperForm : Form
     private bool isPlaying;
     private Color primaryColor = Color.FromArgb(53, 218, 255);
     private Color secondaryColor = Color.FromArgb(177, 65, 255);
+    private D3D11Renderer? gpuRenderer;
     public bool Attached { get; private set; }
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
@@ -336,8 +338,26 @@ internal sealed class WallpaperForm : Form
         RefreshState();
         Invalidate();
     }
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try { gpuRenderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); }
+        catch { gpuRenderer = null; }
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        gpuRenderer?.Resize(ClientSize.Width, ClientSize.Height);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
+        if (artwork is null && gpuRenderer is not null)
+        {
+            gpuRenderer.Clear(new Color4(primaryColor.R / 255f * .12f, primaryColor.G / 255f * .12f, primaryColor.B / 255f * .12f, 1f));
+            return;
+        }
         var g = e.Graphics;
         using (var background = new LinearGradientBrush(ClientRectangle,
             Darken(primaryColor, 0.12f), Darken(secondaryColor, 0.10f), 20f))
@@ -432,7 +452,7 @@ internal sealed class WallpaperForm : Form
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { timer.Dispose(); artwork?.Dispose(); }
+        if (disposing) { timer.Dispose(); artwork?.Dispose(); gpuRenderer?.Dispose(); }
         base.Dispose(disposing);
     }
 }
