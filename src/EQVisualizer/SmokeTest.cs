@@ -36,20 +36,20 @@ internal static class SmokeTest
             var values = new Settings();
             var before = System.Text.Json.JsonSerializer.Serialize(values);
             using var settings = new SettingsForm(values);
-            settings.Show(); Application.DoEvents();
+            settings.Show(); PumpAnimations();
             using var screenshot = new Bitmap(settings.Width, settings.Height);
             settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
             screenshot.Save(Path.Combine(directory, "settings.png"), System.Drawing.Imaging.ImageFormat.Png);
             for (int i = 0; i < settings.SectionCount; i++)
             {
-                settings.SelectSection(i); Application.DoEvents();
+                settings.SelectSection(i); PumpAnimations();
                 settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
                 screenshot.Save(Path.Combine(directory, $"settings-{i}.png"), System.Drawing.Imaging.ImageFormat.Png);
             }
             settings.DialogResult = DialogResult.OK; settings.Close();
             if (System.Text.Json.JsonSerializer.Serialize(values) != before) throw new InvalidOperationException("Settings changed without an edit.");
             using var welcome = new WelcomeForm(new Settings());
-            welcome.Show(); Application.DoEvents();
+            welcome.Show(); PumpAnimations();
             using var welcomeImage = new Bitmap(welcome.Width, welcome.Height);
             welcome.DrawToBitmap(welcomeImage, new Rectangle(Point.Empty, welcomeImage.Size));
             welcomeImage.Save(Path.Combine(directory, "welcome.png"), System.Drawing.Imaging.ImageFormat.Png);
@@ -59,5 +59,10 @@ internal static class SmokeTest
             return 0;
         }
         catch (Exception e) { File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), e.ToString()); return 1; }
+    }
+    private static void PumpAnimations()
+    {
+        var time = System.Diagnostics.Stopwatch.StartNew();
+        while (time.ElapsedMilliseconds < 220) { Application.DoEvents(); Thread.Sleep(10); }
     }
 }

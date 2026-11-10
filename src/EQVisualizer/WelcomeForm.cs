@@ -36,7 +36,7 @@ internal sealed class WelcomeForm : ModernForm
 internal sealed class WelcomeChoice(string title, string description, int mode) : RadioButton
 {
     protected override Size DefaultSize => new(232, 178);
-    protected override void OnCreateControl() { base.OnCreateControl(); Text=title;AutoSize = false; Size = DefaultSize; Margin = new Padding(0, 0, 12, 0); Cursor = Cursors.Hand; AccessibleName = title; }
+    protected override void OnCreateControl() { base.OnCreateControl(); Text = title; AutoSize = false; Size = DefaultSize; Margin = new Padding(0, 0, 12, 0); Cursor = Cursors.Hand; AccessibleName = title; }
     protected override void OnCheckedChanged(EventArgs e) { base.OnCheckedChanged(e); Invalidate(); }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -47,7 +47,7 @@ internal sealed class WelcomeChoice(string title, string description, int mode) 
         using var pen = new Pen(Color.FromArgb(150, Ui.Accent), 1.6f);
         if (mode is 0 or 2) g.DrawEllipse(pen, Width / 2 - 31, 14, 62, 62);
         if (mode is 1 or 2) for (int i = 0; i < 15; i++) { float h = 5 + MathF.Sin(i * .6f) * 4; g.DrawLine(pen, Width / 2 - 45 + i * 6, 90, Width / 2 - 45 + i * 6, 90 - h); }
-        using var titleFont=Ui.Font(10,FontStyle.Bold);using var descriptionFont=Ui.Font(8.5f);
+        using var titleFont = Ui.Font(10, FontStyle.Bold); using var descriptionFont = Ui.Font(8.5f);
         TextRenderer.DrawText(g, title, titleFont, new Rectangle(14, 108, Width - 28, 24), Ui.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         TextRenderer.DrawText(g, description, descriptionFont, new Rectangle(12, 140, Width - 24, 24), Ui.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.WordBreak);
     }

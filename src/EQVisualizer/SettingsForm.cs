@@ -34,6 +34,13 @@ internal sealed class SettingsForm : ModernForm
         footer.Controls.Add(new Label { Text = "Los cambios se aplican al guardar", ForeColor = Ui.Muted, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = Ui.Font(8.5f) });
         footer.Controls.Add(buttons);
         body.Controls.Add(contentHost); body.Controls.Add(footer); body.Controls.Add(sidebar); Controls.Add(body); Chrome.SendToBack();
+        pageMotion = new UiTween(() =>
+        {
+            if (slidingPage is null || slidingPage.IsDisposed) return;
+            int offset = (int)(14 * (1 - pageMotion!.Value));
+            slidingPage.SetBounds(slidingBounds.X + offset, slidingBounds.Y, slidingBounds.Width, slidingBounds.Height);
+            if (pageMotion.Value >= 1) slidingPage.Dock = DockStyle.Fill;
+        });
         AcceptButton = save; CancelButton = cancel;
         var appearance = Page("Portada", "El centro de tu escritorio.");
         Row(appearance, "Visualizador", mode); mode.SelectedIndex = (int)settings.VisualizerMode;
@@ -78,12 +85,21 @@ internal sealed class SettingsForm : ModernForm
     private readonly List<UiButton> navigationButtons = [];
     private readonly Panel contentHost;
     private readonly FlowLayoutPanel navigation;
+    private readonly UiTween pageMotion;
+    private Panel? slidingPage;
+    private Rectangle slidingBounds;
     public int SectionCount => pages.Count;
     public void SelectSection(int index)
     {
+        if (slidingPage is not null) slidingPage.Dock = DockStyle.Fill;
         for (int i = 0; i < pages.Count; i++) { pages[i].Visible = i == index; navigationButtons[i].Selected = i == index; navigationButtons[i].Invalidate(); }
-        if (index >= 0 && index < pages.Count) pages[index].BringToFront();
+        if (index >= 0 && index < pages.Count)
+        {
+            slidingPage = pages[index]; slidingPage.BringToFront(); contentHost.PerformLayout(); slidingBounds = slidingPage.Bounds;
+            slidingPage.Dock = DockStyle.None; pageMotion.Reset(0); pageMotion.Move(1, Visible);
+        }
     }
+    protected override void Dispose(bool disposing) { if (disposing) pageMotion?.Dispose(); base.Dispose(disposing); }
     private static UiSelect Choices(params object[] items)
     {
         var box = new UiSelect { Dock = DockStyle.Fill }; box.Items.AddRange(items); return box;
@@ -100,9 +116,9 @@ internal sealed class SettingsForm : ModernForm
         var heading = new Panel { Dock = DockStyle.Top, Height = 86 };
         heading.Controls.Add(new Label { Text = title, Font = Ui.Font(24, FontStyle.Bold), ForeColor = Ui.Text, AutoSize = true, Location = new Point(0, 0) });
         heading.Controls.Add(new Label { Text = description, Font = Ui.Font(10), ForeColor = Ui.Muted, AutoSize = true, Location = new Point(2, 49) });
-        var table = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(18, 8, 18, 18), BackColor = Ui.Surface };
+        var table = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(6, 0, 6, 4), BackColor = Ui.Surface };
         table.ColumnStyles.Add(new(SizeType.Percent, 52)); table.ColumnStyles.Add(new(SizeType.Percent, 48));
-        var card = new UiCard { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(1) };
+        var card = new UiCard { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(14) };
         card.Controls.Add(table); page.Controls.Add(card); page.Controls.Add(heading); contentHost.Controls.Add(page); pages.Add(page);
         var button = new UiButton { Text = $"{index + 1:00}   {title}", Navigation = true, Quiet = true, Width = 174, Height = 46, Margin = new Padding(0, 0, 0, 8) };
         button.Click += (_, _) => SelectSection(index); navigation.Controls.Add(button); navigationButtons.Add(button);

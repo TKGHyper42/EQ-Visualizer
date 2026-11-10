@@ -88,7 +88,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.PositionX = Math.Clamp(settings.PositionX, .1f, .9f);
         settings.PositionY = Math.Clamp(settings.PositionY, .1f, .9f);
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
-        var menu = new ContextMenuStrip();
+        var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
         menu.Items.Add("30 FPS", null, (_, _) => SetFps(30));
@@ -100,7 +100,7 @@ internal sealed class WallpaperContext : ApplicationContext
         deviceMenu.DropDownOpening += (_, _) => RefreshDevices();
         menu.Items.Add(deviceMenu);
         menu.Items.Add("Salir", null, (_, _) => ExitThread());
-        tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "EQ Visualizer (prototipo)", ContextMenuStrip = menu, Visible = true };
+        tray = new NotifyIcon { Icon = Ui.CreateIcon(), Text = "EQ Visualizer", ContextMenuStrip = menu, Visible = true };
         media = new MediaSessionMonitor(SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext());
         menu.Items.Insert(2, new ToolStripMenuItem("Estado", null, (_, _) => MessageBox.Show(
             string.Join("\n", forms.Select(f => f.RendererName)) + "\nContraste: " + iconContrast.Status +
@@ -302,6 +302,7 @@ internal sealed class WallpaperContext : ApplicationContext
         foreach (var f in forms) { f.Close(); f.Dispose(); }
         audio.Dispose();
         tray.Visible = false;
+        tray.Icon?.Dispose();
         tray.Dispose();
         base.ExitThreadCore();
     }
