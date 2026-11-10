@@ -68,15 +68,15 @@ internal sealed class SettingsForm : ModernForm
         });
         AcceptButton = save; CancelButton = cancel;
         var appearance = Page("Portada", "El centro de tu escritorio.");
-        Row(appearance, "Visualizador", mode); mode.SelectedIndex = (int)settings.VisualizerMode;
+        Row(appearance, "Visualizador", mode); mode.SelectedIndex = Math.Clamp((int)settings.VisualizerMode, 0, mode.Items.Count - 1);
         trackInfo.Checked = settings.ShowTrackInfo; Row(appearance, "Información de la canción", trackInfo);
         Number(appearance, "Tamaño de portada (%)", "size", settings.CoverSize * 100, 15, 65);
         Number(appearance, "Posición horizontal (%)", "x", settings.PositionX * 100, 10, 90);
         Number(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
         Number(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
-        Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = (int)settings.ContrastMode;
-        Row(appearance, "Cuando no hay sesión", idleMode); idleMode.SelectedIndex = (int)settings.NoSessionMode;
-        Row(appearance, "Estilo de reloj", clockStyle); clockStyle.SelectedIndex = (int)settings.ClockStyle;
+        Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = Math.Clamp((int)settings.ContrastMode, 0, contrast.Items.Count - 1);
+        Row(appearance, "Cuando no hay sesión", idleMode); idleMode.SelectedIndex = Math.Clamp((int)settings.NoSessionMode, 0, idleMode.Items.Count - 1);
+        Row(appearance, "Estilo de reloj", clockStyle); clockStyle.SelectedIndex = Math.Clamp((int)settings.ClockStyle, 0, clockStyle.Items.Count - 1);
         var idleFile = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Elevated };
         var browse = new UiButton { Text = "Elegir…", Dock = DockStyle.Right, Width = 94 };
         idlePath.Text = settings.NoSessionImagePath ?? "";
@@ -91,7 +91,7 @@ internal sealed class SettingsForm : ModernForm
         Hint(appearance, "El modo adaptativo sigue las posiciones que expone el Explorador. Si no están disponibles, Estado lo indica; puedes elegir oscurecer la imagen completa.");
 
         var interfacePage = Page("Interfaz", "Colores que se sienten tuyos.");
-        interfaceTheme.SelectedIndex = (int)settings.InterfaceTheme;
+        interfaceTheme.SelectedIndex = Math.Clamp((int)settings.InterfaceTheme, 0, interfaceTheme.Items.Count - 1);
         Row(interfacePage, "Tema", interfaceTheme);
         Row(interfacePage, "Color de acento", accentButton);
         accentButton.Click += (_, _) =>
