@@ -1,7 +1,7 @@
 name: Windows build
 on:
   push:
-    branches: [codex/bootstrap-eq-visualizer]
+    branches: [main, codex/bootstrap-eq-visualizer]
   workflow_dispatch:
 permissions:
   contents: read
