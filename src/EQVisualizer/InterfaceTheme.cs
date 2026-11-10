@@ -2,16 +2,19 @@ using System.Drawing;
 
 namespace EQVisualizer;
 
-internal enum InterfaceTheme { Carbon, Graphite, Plum, Forest, Pearl, Sand, Mist, Rose }
+internal enum InterfaceTheme { Carbon, Graphite, Plum, Forest, Pearl, Sand, Mist, Rose, Aurora }
 
 internal readonly record struct InterfacePalette(Color Background, Color Sidebar, Color Surface,
     Color Elevated, Color Line, Color Text, Color Muted, Color Accent);
 
 internal static class InterfacePalettes
 {
-    public static bool IsDark(this InterfaceTheme theme) => theme is InterfaceTheme.Carbon or InterfaceTheme.Graphite or InterfaceTheme.Plum or InterfaceTheme.Forest;
+    public static bool IsDark(this InterfaceTheme theme) => theme is InterfaceTheme.Carbon or InterfaceTheme.Graphite or InterfaceTheme.Plum or InterfaceTheme.Forest or InterfaceTheme.Aurora;
     public static InterfacePalette For(InterfaceTheme theme) => theme switch
     {
+        InterfaceTheme.Aurora => new(Color.FromArgb(19, 17, 21), Color.FromArgb(24, 20, 25),
+            Color.FromArgb(32, 27, 34), Color.FromArgb(48, 36, 48), Color.FromArgb(88, 64, 83),
+            Color.FromArgb(249, 242, 247), Color.FromArgb(199, 174, 199), Color.FromArgb(245, 184, 148)),
         InterfaceTheme.Graphite => new(Color.FromArgb(19, 19, 20), Color.FromArgb(24, 24, 26),
             Color.FromArgb(32, 32, 35), Color.FromArgb(46, 46, 51), Color.FromArgb(70, 70, 76),
             Color.FromArgb(245, 245, 246), Color.FromArgb(180, 180, 186), Color.FromArgb(240, 191, 114)),

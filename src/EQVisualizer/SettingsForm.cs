@@ -14,7 +14,7 @@ internal sealed class SettingsForm : ModernForm
     private readonly UiSelect idleMode = Choices("Ocultar wallpaper", "Reloj", "Imagen personalizada", "Imagen y reloj");
     private readonly UiSelect clockStyle = Choices("Digital redondeado", "Analógico circular");
     private readonly UiSelect interfaceTheme = Choices("Carbón · oscuro", "Grafito · oscuro", "Ciruela · oscuro", "Bosque · oscuro",
-        "Perla · claro", "Arena · claro", "Bruma · claro", "Rosa · claro");
+        "Perla · claro", "Arena · claro", "Bruma · claro", "Rosa · claro", "Aurora · oscuro");
     private readonly TextBox idlePath = new() { BorderStyle = BorderStyle.None, BackColor = Ui.Elevated, ForeColor = Ui.Text, ReadOnly = true };
     private readonly CheckBox previewIdle = new UiToggle { Text = "Ver sin música", AutoSize = false, Width = 170 };
     private readonly UiSelect toggleKey = KeysBox(), effectsKey = KeysBox();

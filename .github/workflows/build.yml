@@ -26,6 +26,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Check spectrum and scene geometry
         run: dotnet run --project tests/EQVisualizer.CoreChecks -c Release
+      - name: Review Windows interface and edge cases
+        run: dotnet run --project tests/EQVisualizer.WindowsReview -c Release -- TestResults/${{ matrix.arch }}/review
       - name: Publish executable
         run: dotnet publish src/EQVisualizer/EQVisualizer.csproj -c Release -r ${{ matrix.arch }} --self-contained true -p:PublishSingleFile=true -p:DebugType=none -o out/${{ matrix.arch }}
       - name: Exercise published renderer
@@ -75,4 +77,46 @@ jobs:
           name: checks-${{ matrix.arch }}
           path: TestResults/${{ matrix.arch }}/
           if-no-files-found: warn
+
+  private-assets:
+    needs: build
+    if: github.event_name == 'push' && github.repository == 'TKGHyper42/EQ-Visualizer' && github.event.repository.private && contains(github.event.head_commit.message, '[private-build]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: EQVisualizer-win-*
+          path: binaries
+      - name: Prepare executable and ZIP downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p downloads
+          for arch in win-x64 win-x86; do
+            test -f "binaries/EQVisualizer-$arch/EQVisualizer.exe"
+            (cd "binaries/EQVisualizer-$arch" && tr -d '\r' < SHA256.txt | sha256sum --check --strict)
+            cp "binaries/EQVisualizer-$arch/EQVisualizer.exe" "downloads/EQVisualizer-$arch.exe"
+            (cd "binaries/EQVisualizer-$arch" && zip -q -r "../../downloads/EQVisualizer-$arch.zip" .)
+          done
+          (cd downloads && sha256sum EQVisualizer-win-x64.exe EQVisualizer-win-x86.exe EQVisualizer-win-x64.zip EQVisualizer-win-x86.zip > SHA256SUMS.txt)
+      - name: Store downloads in an unpublished private release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
+          tag="private-build-$GITHUB_RUN_ID"
+          gh release create "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" \
+            --title "EQ Visualizer — compilación privada de prueba" --draft --prerelease \
+            --notes "Compilaciones de prueba para Windows x64 y x86. Extrae el ZIP completo y ejecuta EQVisualizer.exe. Los ZIP incluyen la guía y las licencias de distribución." \
+            downloads/EQVisualizer-win-x64.exe downloads/EQVisualizer-win-x86.exe \
+            downloads/EQVisualizer-win-x64.zip downloads/EQVisualizer-win-x86.zip downloads/SHA256SUMS.txt
+          gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft,isPrerelease,url,tagName,assets
+          test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
+          test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
 

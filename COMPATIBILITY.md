@@ -25,7 +25,7 @@ Sin sesión musical puedes dejar el wallpaper oculto, mostrar un reloj, una imag
 
 El reloj puede ser digital en una tarjeta redondeada o analógico circular. En ambos estilos se actualiza cada minuto visible; el estilo se cambia en Portada y aparece en la vista previa antes de guardar.
 
-El apartado **Interfaz** ofrece cuatro temas oscuros y cuatro claros. Carbón es el predeterminado. Cada paleta mantiene contraste de al menos 7:1 en texto principal y 4,5:1 en texto secundario, según la comparación de colores del proyecto. Los acentos personalizados se ajustan si no alcanzan 4,5:1 contra la superficie. Esto no sustituye una revisión de accesibilidad con usuarios reales.
+El apartado **Interfaz** ofrece cinco temas oscuros y cuatro claros. Carbón es el predeterminado. Aurora combina un fondo carbón con acento melocotón y tonos lila. Cada paleta mantiene contraste de al menos 7:1 en texto principal y 4,5:1 en texto secundario, según la comparación de colores del proyecto. Los acentos personalizados se ajustan si no alcanzan 4,5:1 contra la superficie. Esto no sustituye una revisión de accesibilidad con usuarios reales.
 
 En **Visualizador** elige **Solo círculo**, **Solo franja inferior** o **Círculo y franja**. También puedes cambiarlo directamente desde el menú de la bandeja. El círculo sigue a la portada; la franja mantiene su posición sobre la barra de tareas. La portada y el túnel son independientes del modo de barras elegido.
 
