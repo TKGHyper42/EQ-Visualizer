@@ -3,9 +3,9 @@ namespace EQVisualizer;
 internal sealed class WelcomeForm : ModernForm
 {
     private readonly Settings settings;
-    private readonly RadioButton cover = new WelcomeChoice("Portada", "El ritmo alrededor de tu música.", 0) { Checked = true };
-    private readonly RadioButton bottom = new WelcomeChoice("Franja inferior", "Más espacio para tu escritorio.", 1);
-    private readonly RadioButton both = new WelcomeChoice("La experiencia completa", "Portada y franja en sincronía.", 2);
+    private readonly RadioButton cover = new WelcomeChoice("Solo círculo", "El ritmo alrededor de la portada.", 0) { Checked = true };
+    private readonly RadioButton bottom = new WelcomeChoice("Solo franja inferior", "El ritmo sobre la barra de tareas.", 1);
+    private readonly RadioButton both = new WelcomeChoice("Círculo y franja", "Los dos visualizadores a la vez.", 2);
 
     public WelcomeForm(Settings settings) : base("EQ Visualizer / Bienvenida")
     {
@@ -27,7 +27,7 @@ internal sealed class WelcomeForm : ModernForm
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (DialogResult == DialogResult.OK)
-            settings.VisualizerMode = both.Checked ? VisualizerMode.Both : bottom.Checked ? VisualizerMode.Bottom : VisualizerMode.Cover;
+            settings.VisualizerMode = both.Checked ? VisualizerMode.Both : bottom.Checked ? VisualizerMode.Bottom : VisualizerMode.Circle;
         base.OnFormClosing(e);
     }
 }

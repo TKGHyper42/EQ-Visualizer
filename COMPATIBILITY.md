@@ -21,6 +21,8 @@ El aislamiento por proceso aún no está implementado. La API de activación de 
 
 Desde la bandeja abre **Ajustes**: portada, posición, tamaño, franja inferior, contraste, sensibilidad, suavizado, túnel, paralaje, FPS, escala interna y capas. Los ajustes son globales; cada pantalla adapta la escena a su tamaño y área de trabajo. **Estado** muestra el motor activo, la detección de iconos y posibles errores de audio.
 
+En **Visualizador** elige **Solo círculo**, **Solo franja inferior** o **Círculo y franja**. También puedes cambiarlo directamente desde el menú de la bandeja. El círculo sigue a la portada; la franja mantiene su posición sobre la barra de tareas. La portada y el túnel son independientes del modo de barras elegido.
+
 - `Ctrl + Alt + V`: activar o desactivar el wallpaper.
 - `Ctrl + Alt + E`: alternar túnel y paralaje.
 - Ambos atajos y sus modificadores se pueden cambiar.

@@ -29,16 +29,21 @@ internal static class SmokeTest
             scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, true, true, .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
             Step("Drawing and reading pixels");
             renderer.Render(scene.Vertices, Path.Combine(directory, "renderer.png"));
+            foreach (var mode in VisualizerModes.All)
+            {
+                scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, mode.HasCircle(), mode.HasBottom(), .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
+                renderer.Render(scene.Vertices, Path.Combine(directory, $"mode-{(int)mode}.png"));
+            }
             renderer.Resize(640, 360); renderer.Render(scene.Vertices);
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
             Step("Capturing settings form");
-            using(var number=new UiNumber{Minimum=0,Maximum=10,Increment=.25m,DecimalPlaces=0,Value=2.5m})
+            using (var number = new UiNumber { Minimum = 0, Maximum = 10, Increment = .25m, DecimalPlaces = 0, Value = 2.5m })
             {
-                if(number.Value!=2.5m)throw new InvalidOperationException("Numeric field rounded an untouched setting.");
-                var entry=number.Controls.OfType<TextBox>().Single();entry.Text="7";
-                if(number.Value!=7)throw new InvalidOperationException("Numeric field did not accept typed input.");
-                entry.Text="999";if(number.Value!=10)throw new InvalidOperationException("Numeric field exceeded its limit.");
+                if (number.Value != 2.5m) throw new InvalidOperationException("Numeric field rounded an untouched setting.");
+                var entry = number.Controls.OfType<TextBox>().Single(); entry.Text = "7";
+                if (number.Value != 7) throw new InvalidOperationException("Numeric field did not accept typed input.");
+                entry.Text = "999"; if (number.Value != 10) throw new InvalidOperationException("Numeric field exceeded its limit.");
             }
             var values = new Settings();
             var before = System.Text.Json.JsonSerializer.Serialize(values);

@@ -102,8 +102,8 @@ internal sealed class WallpaperForm : Form
         float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);
         scene.Build(new(Width, Height, phase, new(settings.PositionX + pointer.X, settings.PositionY + pointer.Y),
             settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
-            settings.VisualizerMode is VisualizerMode.Cover or VisualizerMode.Both,
-            settings.VisualizerMode is VisualizerMode.Bottom or VisualizerMode.Both, bottomY, settings.QualityLayers, primary, secondary), spectrum, region);
+            settings.VisualizerMode.HasCircle(),
+            settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary), spectrum, region);
         if (renderer is not null)
         {
             try

@@ -40,3 +40,16 @@ foreach(var phase in new[]{0f,.3f,1f,2000f})
     Check(scene.Vertices.Length%6==0 && scene.Vertices.Length<16384 && scene.Vertices.ToArray().All(v=>float.IsFinite(v.Position.X)&&float.IsFinite(v.Position.Y)),"Bounded finite geometry "+resolution+" phase "+phase);
 }
 Console.WriteLine("All core checks passed.");
+var baseOptions=new SceneOptions(1280,720,0,new(.5f,.48f),.36f,1,1,false,false,false,.94f,8,Vector4.One,Vector4.One);
+scene.Build(baseOptions,high.Spectrum,[]);
+int baseVertices=scene.Vertices.Length;
+foreach(var mode in VisualizerModes.All)
+{
+    scene.Build(baseOptions with{Ring=mode.HasCircle(),Bottom=mode.HasBottom()},high.Spectrum,[]);
+    int expected=baseVertices+64*6*(mode==VisualizerMode.Both?2:1);
+    Check(scene.Vertices.Length==expected,"Independent visualizer geometry: "+mode.Label());
+    var bars=scene.Vertices[baseVertices..].ToArray();
+    if(mode==VisualizerMode.Bottom)Check(bars.All(v=>v.Position.Y<-.45f),"Bottom-only mode contains no circle bars");
+    if(mode==VisualizerMode.Circle)Check(bars.All(v=>MathF.Abs(v.Position.X)<.46f),"Circle-only mode contains no wide taskbar strip");
+    Check(System.Text.Json.JsonSerializer.Deserialize<VisualizerMode>(((int)mode).ToString())==mode,"Existing numeric settings remain compatible");
+}

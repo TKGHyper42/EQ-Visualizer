@@ -22,7 +22,6 @@ internal static class Program
     }
 }
 
-internal enum VisualizerMode { Cover, Bottom, Both }
 internal enum ContrastMode { Adaptive, WholeImage, Off }
 
 internal sealed class Settings
@@ -91,6 +90,20 @@ internal sealed class WallpaperContext : ApplicationContext
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
+        var modeMenu = new ToolStripMenuItem("Visualizador");
+        foreach (var mode in VisualizerModes.All)
+        {
+            var choice = (ToolStripMenuItem)modeMenu.DropDownItems.Add(mode.Label(), null, (_, _) =>
+            {
+                settings.VisualizerMode = mode; Save(); foreach (var form in forms) form.RefreshState(true);
+            });
+            choice.Tag = mode;
+        }
+        modeMenu.DropDownOpening += (_, _) =>
+        {
+            foreach (ToolStripMenuItem choice in modeMenu.DropDownItems) choice.Checked = Equals(choice.Tag, settings.VisualizerMode);
+        };
+        menu.Items.Add(modeMenu);
         menu.Items.Add("30 FPS", null, (_, _) => SetFps(30));
         menu.Items.Add("45 FPS", null, (_, _) => SetFps(45));
         menu.Items.Add("60 FPS", null, (_, _) => SetFps(60));

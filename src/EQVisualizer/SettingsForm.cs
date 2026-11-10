@@ -8,7 +8,7 @@ internal sealed class SettingsForm : ModernForm
     private readonly CheckBox tunnel = new UiToggle() { Text = "Túnel de portadas", AutoSize = false };
     private readonly CheckBox parallax = new UiToggle() { Text = "Seguir suavemente el cursor", AutoSize = false };
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
-    private readonly UiSelect mode = Choices("Alrededor de la portada", "Franja inferior", "Ambos");
+    private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
     private readonly UiSelect toggleKey = KeysBox(), effectsKey = KeysBox();
 
