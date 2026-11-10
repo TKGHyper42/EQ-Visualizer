@@ -233,7 +233,7 @@ internal static class DesktopHost
     private const uint SMTO_NORMAL = 0;
     private const int GWL_STYLE = -16;
     private const long WS_CHILD = 0x40000000;
-    private const long WS_POPUP = unchecked((int)0x80000000);
+    private const long WS_POPUP = 0x80000000L;
     private static IntPtr worker;
     public static bool Attach(IntPtr hwnd)
     {
