@@ -23,6 +23,34 @@ internal sealed class VisualScene
     private int count;
     private float width, height;
     public ReadOnlySpan<GpuVertex> Vertices => vertices.AsSpan(0, count);
+    public void BuildIdle(float viewWidth, float viewHeight, float coverSize, Vector2 center,
+        bool showImage, bool showClock, ReadOnlySpan<ShadeRegion> shades = default)
+    {
+        count = 0; width = Math.Max(1, viewWidth); height = Math.Max(1, viewHeight);
+        Quad(width / 2, height / 2, width, height, new(.035f, .045f, .075f, 1), false);
+        float unit = Math.Min(width, height), size = unit * coverSize;
+        float cx = center.X * width, cy = center.Y * height;
+        if (showImage)
+        {
+            int first = count;
+            float background = Math.Max(width, height) * 1.12f;
+            Quad(width / 2, height / 2, background, background, new(.35f, .35f, .35f, 1), true);
+            for (int i = first; i < count; i++) vertices[i].Textured = 3;
+            Quad(cx, cy, size + 14, size + 14, new(0, 0, 0, .55f), false);
+            Quad(cx, cy, size, size, Vector4.One, true);
+        }
+        if (showClock)
+        {
+            float w = unit * (showImage ? .55f : .75f), h = w / 8;
+            int first = count;
+            Quad(cx, showImage ? cy + size / 2 + unit * .025f + h / 2 : cy,
+                w, h, Vector4.One, true);
+            for (int i = first; i < count; i++) vertices[i].Textured = 2;
+        }
+        foreach (var region in shades)
+            Quad(region.X + region.Width / 2, region.Y + region.Height / 2,
+                region.Width, region.Height, new(0, 0, 0, region.Opacity), false);
+    }
     public void Build(SceneOptions o, ReadOnlySpan<float> spectrum, ReadOnlySpan<ShadeRegion> shades)
     {
         count = 0; width = Math.Max(1, o.Width); height = Math.Max(1, o.Height);

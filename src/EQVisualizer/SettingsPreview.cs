@@ -6,7 +6,8 @@ namespace EQVisualizer;
 
 internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverSize, float X, float Y,
     float Margin, float Strength, float Sensitivity, float Thickness, int Layers, bool Tunnel,
-    bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast);
+    bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
+    bool PreviewIdle, string? IdlePath);
 
 // Uses the same scene geometry as the wallpaper. The spectrum is deliberately simulated.
 internal sealed class SettingsPreview : Control
@@ -16,6 +17,10 @@ internal sealed class SettingsPreview : Control
     private readonly bool sampleArtwork;
     private readonly float[] spectrum = new float[64];
     private readonly Bitmap caption = TrackCaption.Create("Vista previa", "EQ Visualizer")!;
+    private readonly Bitmap clockCaption = TrackCaption.Create(DateTime.Now.ToString("HH:mm"),
+        DateTime.Now.ToString("dddd, d MMMM", System.Globalization.CultureInfo.CurrentCulture))!;
+    private Image? idleArtwork;
+    private string? cachedIdlePath;
     private Bitmap? backdrop;
     private float cachedBlur = -1;
     private PreviewOptions options;
@@ -40,8 +45,23 @@ internal sealed class SettingsPreview : Control
 
     public void SetOptions(PreviewOptions value)
     {
-        if (cachedBlur != value.Blur) { backdrop?.Dispose(); backdrop = null; cachedBlur = -1; }
+        if (cachedIdlePath != value.IdlePath)
+        {
+            idleArtwork?.Dispose(); idleArtwork = LoadImage(value.IdlePath); cachedIdlePath = value.IdlePath;
+        }
+        if (cachedBlur != value.Blur || options.PreviewIdle != value.PreviewIdle ||
+            options.IdlePath != value.IdlePath) { backdrop?.Dispose(); backdrop = null; cachedBlur = -1; }
         options = value; Invalidate();
+    }
+
+    public static bool CanLoadImage(string? path)
+    {
+        using var image = LoadImage(path);
+        return image is not null;
+    }
+    private static Image? LoadImage(string? path)
+    {
+        return LocalImage.Load(path);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -56,28 +76,38 @@ internal sealed class SettingsPreview : Control
         using (var edge = new Pen(Ui.Line)) { g.FillPath(fill, border); g.DrawPath(edge, border); }
         using (var dot = new SolidBrush(options.Accent)) g.FillEllipse(dot, 17, 15, 8, 8);
         TextRenderer.DrawText(g, "VISTA PREVIA", Ui.Font(8.5f, FontStyle.Bold), new Rectangle(31, 10, 160, 20), Ui.Text);
-        TextRenderer.DrawText(g, sampleArtwork ? "Portada de muestra · señal simulada" : "Portada actual · señal simulada",
+        string detail = options.PreviewIdle ? "Modo sin música · sin audio" :
+            sampleArtwork ? "Portada de muestra · señal simulada" : "Portada actual · señal simulada";
+        TextRenderer.DrawText(g, detail,
             Ui.Font(8), new Rectangle(190, 10, Math.Max(10, Width - 205), 20), Ui.Muted,
             TextFormatFlags.Right | TextFormatFlags.EndEllipsis);
         var canvas = new Rectangle(12, 37, Width - 26, Height - 50);
         if (canvas.Width < 10 || canvas.Height < 10) return;
         g.SetClip(canvas);
-        if (backdrop is null || cachedBlur != options.Blur)
+        Image selectedArtwork = options.PreviewIdle && idleArtwork is not null ? idleArtwork : artwork;
+        bool idleImage = options.PreviewIdle && options.IdleMode.HasImage() && idleArtwork is not null;
+        if ((idleImage || !options.PreviewIdle) && (backdrop is null || cachedBlur != options.Blur))
         {
-            backdrop?.Dispose(); backdrop = BackdropImage.Create(artwork, options.Blur); cachedBlur = options.Blur;
+            backdrop?.Dispose(); backdrop = BackdropImage.Create(selectedArtwork, options.Blur); cachedBlur = options.Blur;
         }
-        float bottom = Math.Clamp(.96f - options.Margin, .2f, .98f);
-        var shades = options.Contrast == ContrastMode.WholeImage
-            ? new[] { new ShadeRegion(0, 0, canvas.Width, canvas.Height, .35f) } : [];
-        scene.Build(new SceneOptions(canvas.Width, canvas.Height, .3f, new(options.X, options.Y),
-            options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
-            options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,
-            primary, secondary, options.Thickness, options.TrackInfo), spectrum, shades);
-        DrawScene(g, canvas);
+        if (options.PreviewIdle)
+            scene.BuildIdle(canvas.Width, canvas.Height, options.CoverSize, new(options.X, options.Y),
+                idleImage, options.IdleMode.HasClock());
+        else
+        {
+            float bottom = Math.Clamp(.96f - options.Margin, .2f, .98f);
+            var shades = options.Contrast == ContrastMode.WholeImage
+                ? new[] { new ShadeRegion(0, 0, canvas.Width, canvas.Height, .35f) } : [];
+            scene.Build(new SceneOptions(canvas.Width, canvas.Height, .3f, new(options.X, options.Y),
+                options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
+                options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,
+                primary, secondary, options.Thickness, options.TrackInfo), spectrum, shades);
+        }
+        DrawScene(g, canvas, selectedArtwork);
         g.ResetClip();
     }
 
-    private void DrawScene(Graphics g, Rectangle canvas)
+    private void DrawScene(Graphics g, Rectangle canvas, Image selectedArtwork)
     {
         g.InterpolationMode = InterpolationMode.Bilinear;
         PointF Pixel(Vector2 p) => new(canvas.X + (p.X + 1) * canvas.Width / 2, canvas.Y + (1 - p.Y) * canvas.Height / 2);
@@ -87,7 +117,7 @@ internal sealed class SettingsPreview : Control
             var a = vertices[i]; var b = vertices[i + 1]; var c = vertices[i + 2]; var d = vertices[i + 5];
             if (a.Textured > .5f)
             {
-                Image? image = a.Textured > 2.5f ? backdrop : a.Textured > 1.5f ? caption : artwork;
+                Image? image = a.Textured > 2.5f ? backdrop : a.Textured > 1.5f ? options.PreviewIdle ? clockCaption : caption : selectedArtwork;
                 if (image is null) continue;
                 using var attr = new ImageAttributes();
                 attr.SetColorMatrix(new ColorMatrix { Matrix00 = a.Color.X, Matrix11 = a.Color.Y,
@@ -127,5 +157,5 @@ internal sealed class SettingsPreview : Control
     }
 
     protected override void Dispose(bool disposing)
-    { if (disposing) { artwork.Dispose(); backdrop?.Dispose(); caption.Dispose(); } base.Dispose(disposing); }
+    { if (disposing) { artwork.Dispose(); idleArtwork?.Dispose(); backdrop?.Dispose(); caption.Dispose(); clockCaption.Dispose(); } base.Dispose(disposing); }
 }

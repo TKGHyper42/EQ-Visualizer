@@ -15,7 +15,8 @@ internal sealed class WallpaperForm : Form
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private double lastTime;
     private float phase;
-    private bool systemPaused, covered, isPlaying;
+    private bool systemPaused, covered, isPlaying, hasMusicSession;
+    private string clockText = "";
     private Image? artwork;
     private Bitmap? brightnessSample;
     private Bitmap? caption;
@@ -37,28 +38,33 @@ internal sealed class WallpaperForm : Form
         FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
         Bounds = screen.Bounds; SetStyle(ControlStyles.Opaque, true);
         timer.Tick += (_, _) => TickFrame();
+        if (settings.NoSessionMode != IdleMode.Off) SetNowPlaying(null, false, hasSession: false);
     }
     protected override bool ShowWithoutActivation => true;
     public void SetAttached() { }
     public void RefreshState(bool repaint = false)
     {
         covered = DesktopHost.IsCovered(screen.Bounds);
-        bool show = settings.Enabled && !systemPaused && artwork is not null && Attached;
+        bool idleClock = !hasMusicSession && settings.NoSessionMode.HasClock();
+        bool idleImage = !hasMusicSession && settings.NoSessionMode.HasImage() && artwork is not null;
+        bool show = settings.Enabled && !systemPaused && (hasMusicSession ? artwork is not null : idleClock || idleImage) && Attached;
         bool changed = Visible != show;
         if (changed) Visible = show;
-        timer.Interval = Math.Max(8, 1000 / settings.Fps);
-        bool animate = show && !covered && isPlaying;
+        timer.Interval = idleClock ? 15000 : Math.Max(8, 1000 / settings.Fps);
+        bool animate = show && !covered && (idleClock || hasMusicSession && isPlaying);
         if (timer.Enabled != animate) { timer.Enabled = animate; lastTime = clock.Elapsed.TotalSeconds; }
         if (show && !covered && (repaint || changed)) Invalidate();
     }
     public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
-    public void SetNowPlaying(Image? image, bool playing, string title = "", string artist = "")
+    public void SetNowPlaying(Image? image, bool playing, string title = "", string artist = "", bool hasSession = true)
     {
+        hasMusicSession = hasSession;
         this.title = title; this.artist = artist;
+        clockText = "";
         caption?.Dispose(); caption = null;
         backdrop?.Dispose(); backdrop = null;
         try { renderer?.SetCaption(null); renderer?.SetBackground(null); } catch { DropRenderer(); }
-        artwork?.Dispose(); artwork = image is null ? null : new Bitmap(image);
+        artwork?.Dispose(); artwork = hasSession ? image is null ? null : new Bitmap(image) : LoadIdleImage();
         brightnessSample?.Dispose(); brightnessSample = artwork is null ? null : new Bitmap(artwork, 16, 16);
         if (artwork is not null)
         {
@@ -67,7 +73,28 @@ internal sealed class WallpaperForm : Form
             (primary, secondary) = ArtworkPalette.Create(samples);
         }
         try { renderer?.SetArtwork(artwork); } catch { DropRenderer(); }
-        isPlaying = playing; RefreshState(true);
+        isPlaying = playing;
+        if (!hasMusicSession) UpdateClock();
+        RefreshState(true);
+    }
+    public void RefreshIdleOptions()
+    {
+        if (!hasMusicSession) SetNowPlaying(null, false, hasSession: false);
+        else RefreshState(true);
+    }
+    private Image? LoadIdleImage()
+    {
+        return settings.NoSessionMode.HasImage() ? LocalImage.Load(settings.NoSessionImagePath) : null;
+    }
+    private void UpdateClock()
+    {
+        if (hasMusicSession || !settings.NoSessionMode.HasClock()) return;
+        string next = DateTime.Now.ToString("HH:mm | dddd d MMMM", System.Globalization.CultureInfo.CurrentCulture);
+        if (next == clockText) return;
+        clockText = next;
+        caption?.Dispose();
+        caption = TrackCaption.Create(DateTime.Now.ToString("HH:mm"), DateTime.Now.ToString("dddd, d MMMM", System.Globalization.CultureInfo.CurrentCulture));
+        try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
     }
     public void SetShades(Rectangle[] rectangles)
     {
@@ -94,6 +121,7 @@ internal sealed class WallpaperForm : Form
     protected override void OnPaintBackground(PaintEventArgs e) { }
     private void TickFrame()
     {
+        if (!hasMusicSession) { UpdateClock(); Invalidate(); return; }
         double now = clock.Elapsed.TotalSeconds;
         float dt = (float)Math.Clamp(now - lastTime, 0, .1); lastTime = now;
         if (settings.EnableTunnel) phase += dt * .16f * settings.Strength;
@@ -107,23 +135,29 @@ internal sealed class WallpaperForm : Form
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-        if (artwork is null || !settings.Enabled || systemPaused || covered) return;
-        if (backdrop is null || appliedBlur != settings.BackgroundBlur)
+        if (!settings.Enabled || systemPaused || covered || hasMusicSession && artwork is null) return;
+        if (artwork is not null && (backdrop is null || appliedBlur != settings.BackgroundBlur))
         {
             backdrop?.Dispose(); backdrop = BackdropImage.Create(artwork, settings.BackgroundBlur); appliedBlur = settings.BackgroundBlur;
             try { renderer?.SetBackground(backdrop); } catch { DropRenderer(); }
         }
-        if (settings.ShowTrackInfo && caption is null && !(string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)))
+        if (hasMusicSession && settings.ShowTrackInfo && caption is null && !(string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)))
         {
             caption = TrackCaption.Create(title, artist);
             try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
         }
         var region = settings.ContrastMode == ContrastMode.WholeImage ? new[] { new ShadeRegion(0, 0, Width, Height) } : settings.ContrastMode == ContrastMode.Adaptive ? shades : [];
+        if (!hasMusicSession)
+            scene.BuildIdle(Width, Height, settings.CoverSize, new(settings.PositionX, settings.PositionY),
+                settings.NoSessionMode.HasImage() && artwork is not null, settings.NoSessionMode.HasClock() && caption is not null, region);
+        else
+        {
         float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);
         scene.Build(new(Width, Height, phase, new(settings.PositionX + pointer.X, settings.PositionY + pointer.Y),
             settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
             settings.VisualizerMode.HasCircle(),
             settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary, settings.BarThickness, settings.ShowTrackInfo && caption is not null), spectrum, region);
+        }
         if (renderer is not null)
         {
             try

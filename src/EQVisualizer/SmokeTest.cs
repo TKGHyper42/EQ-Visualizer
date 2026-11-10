@@ -37,6 +37,14 @@ internal static class SmokeTest
                 scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, mode.HasCircle(), mode.HasBottom(), .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1), 1.6f, true), spectrum, []);
                 renderer.Render(scene.Vertices, Path.Combine(directory, $"mode-{(int)mode}.png"));
             }
+            using var clock = TrackCaption.Create("12:34", "martes, 10 noviembre");
+            renderer.SetCaption(clock);
+            scene.BuildIdle(960, 540, .36f, new(.5f, .48f), true, true);
+            renderer.Render(scene.Vertices, Path.Combine(directory, "idle-image-clock.png"));
+            renderer.SetArtwork(null);
+            scene.BuildIdle(960, 540, .36f, new(.5f, .48f), false, true);
+            renderer.Render(scene.Vertices, Path.Combine(directory, "idle-clock.png"));
+            renderer.SetArtwork(cover); renderer.SetCaption(info);
             renderer.Resize(640, 360); renderer.Render(scene.Vertices);
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);

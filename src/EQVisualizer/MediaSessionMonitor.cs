@@ -4,12 +4,13 @@ using Windows.Storage.Streams;
 
 namespace EQVisualizer;
 
-internal sealed class NowPlayingChangedEventArgs(string title, string artist, Image? artwork, bool isPlaying) : EventArgs
+internal sealed class NowPlayingChangedEventArgs(string title, string artist, Image? artwork, bool isPlaying, bool hasSession) : EventArgs
 {
     public string Title { get; } = title;
     public string Artist { get; } = artist;
     public Image? Artwork { get; } = artwork;
     public bool IsPlaying { get; } = isPlaying;
+    public bool HasSession { get; } = hasSession;
 }
 
 internal sealed record MediaSessionChoice(string Id, string Label);
@@ -42,7 +43,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             await PublishSessionsAsync();
             await SelectCurrentSessionAsync();
         }
-        catch { Publish("", "", null, false); }
+        catch { Publish("", "", null, false, false); }
     }
 
     private async void OnCurrentSessionChanged(
@@ -62,7 +63,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
     public async Task SelectSourceAsync(string? sourceId)
     {
         preferredSourceId = sourceId;
-        try { await SelectCurrentSessionAsync(); } catch { Publish("", "", null, false); }
+        try { await SelectCurrentSessionAsync(); } catch { Publish("", "", null, false, false); }
     }
 
     private async Task SelectCurrentSessionAsync()
@@ -104,7 +105,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
                     }
                 }
             }
-            if (session is null) { Publish("", "", null, false); return; }
+            if (session is null) { Publish("", "", null, false, false); return; }
             session.MediaPropertiesChanged += OnMediaPropertiesChanged;
             session.PlaybackInfoChanged += OnPlaybackInfoChanged;
             await PublishSessionAsync();
@@ -152,12 +153,12 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         {
             var properties = await current.TryGetMediaPropertiesAsync();
             if (disposed || version != generation || !ReferenceEquals(current, session)) return;
-            if (!IsMusic(properties)) { Publish("", "", null, false); return; }
+            if (!IsMusic(properties)) { Publish("", "", null, false, false); return; }
             Image? image = properties.Thumbnail is null ? null : await ReadArtworkAsync(properties.Thumbnail);
             bool playing = current.GetPlaybackInfo().PlaybackStatus ==
                 GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
             if (disposed || version != generation || !ReferenceEquals(current, session)) { image?.Dispose(); return; }
-            Publish(properties.Title ?? "", properties.Artist ?? "", image, playing);
+            Publish(properties.Title ?? "", properties.Artist ?? "", image, playing, true);
         }
         catch { }
     }
@@ -177,7 +178,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         return new Bitmap(decoded);
     }
 
-    private void Publish(string title, string artist, Image? artwork, bool playing)
+    private void Publish(string title, string artist, Image? artwork, bool playing, bool hasSession)
     {
         int version = generation;
         context.Post(_ =>
@@ -185,7 +186,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             if (disposed || version != generation) { artwork?.Dispose(); return; }
             var handler = Changed;
             if (handler is null) { artwork?.Dispose(); return; }
-            handler(this, new NowPlayingChangedEventArgs(title, artist, artwork, playing));
+            handler(this, new NowPlayingChangedEventArgs(title, artist, artwork, playing, hasSession));
         }, null);
     }
     private static bool IsMusic(GlobalSystemMediaTransportControlsSessionMediaProperties properties) =>

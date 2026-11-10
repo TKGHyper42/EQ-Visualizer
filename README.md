@@ -31,6 +31,7 @@ Todo se integra detrás de tus iconos, para que puedas seguir usando tu escritor
 - **Una interfaz muy tuya.** Elige el color de acento y la transparencia de la ventana de ajustes.
 - **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
 - **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
+- **También cuando hay silencio.** Si no hay sesión musical, puedes mostrar un reloj, una imagen de tu equipo o ambos.
 - **Una pausa cuando hace falta.** La animación descansa cuando el escritorio queda cubierto y vuelve cuando lo necesitas.
 
 ## 🚀 Empieza a escuchar
@@ -64,6 +65,8 @@ Sigue trabajando, escuchando o descansando. Puedes activar o desactivar los efec
 ## 🔒 Tu música se queda contigo
 
 EQ Visualizer analiza el sonido para crear los efectos. No graba tus canciones, no transmite el audio y no guarda tu historial musical. Tampoco necesitas iniciar sesión en Spotify ni compartir contraseñas.
+
+La imagen personalizada permanece en tu equipo. El programa solo recuerda la ubicación que elegiste.
 
 ## 💜 Hecho para disfrutar el escritorio
 

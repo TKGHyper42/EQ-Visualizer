@@ -11,6 +11,9 @@ internal sealed class SettingsForm : ModernForm
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
+    private readonly UiSelect idleMode = Choices("Ocultar wallpaper", "Reloj", "Imagen personalizada", "Imagen y reloj");
+    private readonly TextBox idlePath = new() { BorderStyle = BorderStyle.None, BackColor = Ui.Elevated, ForeColor = Ui.Text, ReadOnly = true };
+    private readonly CheckBox previewIdle = new UiToggle { Text = "Ver sin música", AutoSize = false, Width = 170 };
     private readonly UiSelect toggleKey = KeysBox(), effectsKey = KeysBox();
     private readonly SettingsPreview preview;
     private Color selectedAccent;
@@ -59,6 +62,18 @@ internal sealed class SettingsForm : ModernForm
         Number(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
         Number(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
         Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = (int)settings.ContrastMode;
+        Row(appearance, "Cuando no hay sesión", idleMode); idleMode.SelectedIndex = (int)settings.NoSessionMode;
+        var idleFile = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Elevated };
+        var browse = new UiButton { Text = "Elegir…", Dock = DockStyle.Right, Width = 94 };
+        idlePath.Text = settings.NoSessionImagePath ?? "";
+        idlePath.Dock = DockStyle.Fill;
+        browse.Click += (_, _) =>
+        {
+            using var picker = new OpenFileDialog { Title = "Elige una imagen de tu equipo", Filter = "Imágenes|*.png;*.jpg;*.jpeg;*.bmp;*.webp|Todos los archivos|*.*", CheckFileExists = true };
+            if (picker.ShowDialog(this) == DialogResult.OK) idlePath.Text = picker.FileName;
+        };
+        idleFile.Controls.Add(idlePath); idleFile.Controls.Add(browse);
+        Row(appearance, "Tu imagen", idleFile);
         Row(appearance, "Color de la interfaz", accentButton);
         accentButton.Click += (_, _) =>
         {
@@ -99,7 +114,14 @@ internal sealed class SettingsForm : ModernForm
         var modifiers = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = false }; modifiers.Controls.AddRange([ctrl, alt, shift]);
         Row(hotkeys, "Modificadores", modifiers);
         Hint(hotkeys, "Por defecto: Ctrl + Alt + V activa el wallpaper; Ctrl + Alt + E alterna túnel y paralaje. Salir desde la bandeja revela el fondo original.");
-        preview.Dock = DockStyle.Top; preview.Height = 190;
+        var previewBar = new Panel { Dock = DockStyle.Top, Height = 38, BackColor = Ui.Background };
+        previewIdle.Dock = DockStyle.Right; previewBar.Controls.Add(previewIdle);
+        previewIdle.Checked = settings.NoSessionMode != IdleMode.Off && artwork is null;
+        previewIdle.CheckedChanged += (_, _) => UpdatePreview();
+        idleMode.SelectedIndexChanged += (_, _) => UpdatePreview();
+        idlePath.TextChanged += (_, _) => UpdatePreview();
+        preview.Dock = DockStyle.Top; preview.Height = 174;
+        contentHost.Controls.Add(previewBar); previewBar.BringToFront();
         contentHost.Controls.Add(preview); preview.BringToFront();
         foreach (var box in numbers.Values) box.ValueChanged += (_, _) => UpdatePreview();
         foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo }) box.CheckedChanged += (_, _) => UpdatePreview();
@@ -136,7 +158,8 @@ internal sealed class SettingsForm : ModernForm
             N("size") / 100, N("x") / 100, N("y") / 100, N("margin") / 100,
             N("strength") / 100, N("sensitivity"), N("thickness") / 100,
             (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
-            (ContrastMode)Math.Max(0, contrast.SelectedIndex)));
+            (ContrastMode)Math.Max(0, contrast.SelectedIndex), (IdleMode)Math.Max(0, idleMode.SelectedIndex),
+            previewIdle.Checked, idlePath.Text));
         WindowOpacity = N("opacity") / 100d;
         if (IsHandleCreated) Opacity = WindowOpacity;
     }
@@ -186,6 +209,8 @@ internal sealed class SettingsForm : ModernForm
     {
         if (DialogResult == DialogResult.OK)
         {
+            if (((IdleMode)idleMode.SelectedIndex).HasImage() && !SettingsPreview.CanLoadImage(idlePath.Text))
+            { MessageBox.Show(this, "Selecciona una imagen válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música"); e.Cancel = true; return; }
             if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||
                 Equals(toggleKey.SelectedItem, effectsKey.SelectedItem) || !ctrl.Checked && !alt.Checked && !shift.Checked)
             { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }
@@ -194,6 +219,8 @@ internal sealed class SettingsForm : ModernForm
             settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
             settings.BackgroundBlur = N("blur");
             settings.InterfaceAccent = selectedAccent.ToArgb(); settings.InterfaceOpacity = (int)N("opacity");
+            settings.NoSessionMode = (IdleMode)idleMode.SelectedIndex;
+            settings.NoSessionImagePath = string.IsNullOrWhiteSpace(idlePath.Text) ? null : idlePath.Text;
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
             settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;

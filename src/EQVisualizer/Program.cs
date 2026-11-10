@@ -56,6 +56,8 @@ internal sealed class Settings
     public float BackgroundBlur { get; set; } = 35;
     public int InterfaceAccent { get; set; } = unchecked((int)0xFF6EE7CF);
     public int InterfaceOpacity { get; set; } = 100;
+    public IdleMode NoSessionMode { get; set; } = IdleMode.Off;
+    public string? NoSessionImagePath { get; set; }
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -95,6 +97,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
+        if (!Enum.IsDefined(settings.NoSessionMode)) settings.NoSessionMode = IdleMode.Off;
         Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
@@ -222,7 +225,7 @@ internal sealed class WallpaperContext : ApplicationContext
         string label = string.IsNullOrWhiteSpace(e.Title) ? "EQ Visualizer" :
             string.IsNullOrWhiteSpace(e.Artist) ? e.Title : $"{e.Title} — {e.Artist}";
         tray.Text = label.Length > 63 ? label[..63] : label;
-        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying, e.Title, e.Artist);
+        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying, e.Title, e.Artist, e.HasSession);
         e.Artwork?.Dispose();
     }
 
@@ -286,7 +289,7 @@ internal sealed class WallpaperContext : ApplicationContext
         }
         Save();
         Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
-        foreach (var form in forms) form.RefreshState(true);
+        foreach (var form in forms) form.RefreshIdleOptions();
     }
 
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
