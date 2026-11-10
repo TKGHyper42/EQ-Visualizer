@@ -1,0 +1,25 @@
+name: Windows build
+on:
+  push:
+    branches: [codex/bootstrap-eq-visualizer]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [win-x64, win-x86]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish
+        run: dotnet publish src/EQVisualizer/EQVisualizer.csproj -c Release -r ${{ matrix.arch }} --self-contained true -p:PublishSingleFile=true -o out/${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EQVisualizer-${{ matrix.arch }}
+          path: out/${{ matrix.arch }}/EQVisualizer.exe
+          if-no-files-found: error
