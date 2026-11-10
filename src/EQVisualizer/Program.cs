@@ -23,6 +23,10 @@ internal sealed class Settings
     public float Strength { get; set; } = 1f;
     public bool Enabled { get; set; } = true;
     public string? AudioDeviceId { get; set; }
+    public Keys HotkeyKey { get; set; } = Keys.V;
+    public bool HotkeyControl { get; set; } = true;
+    public bool HotkeyAlt { get; set; } = true;
+    public bool HotkeyShift { get; set; }
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -46,6 +50,7 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.Strength = Math.Clamp(settings.Strength, 0, 3);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
+        menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
         menu.Items.Add("30 FPS", null, (_, _) => SetFps(30));
         menu.Items.Add("45 FPS", null, (_, _) => SetFps(45));
         menu.Items.Add("60 FPS", null, (_, _) => SetFps(60));
@@ -68,7 +73,7 @@ internal sealed class WallpaperContext : ApplicationContext
         tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "EQ Visualizer (prototipo)", ContextMenuStrip = menu, Visible = true };
         tray.DoubleClick += (_, _) => Toggle();
         hotkey.ToggleRequested += (_, _) => Toggle();
-        if (!hotkey.Registered)
+        if (!hotkey.Configure(settings))
             tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo Ctrl + Alt + V ya está en uso.", ToolTipIcon.Warning);
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -122,6 +127,16 @@ internal sealed class WallpaperContext : ApplicationContext
                 DesktopHost.Attach(form.Handle);
         }
     }
+    private void ShowSettings()
+    {
+        using var window = new SettingsForm(settings);
+        if (window.ShowDialog() != DialogResult.OK) return;
+        Save();
+        foreach (var form in forms) form.RefreshState();
+        if (!hotkey.Configure(settings))
+            tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo elegido ya está en uso.", ToolTipIcon.Warning);
+    }
+
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
     private void SetStrength(float strength) { settings.Strength = Math.Clamp(strength, 0, 3); Save(); }
     private void SetDevice(string? id)
@@ -348,13 +363,21 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     private const int WmHotkey = 0x0312;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
+    private const uint ModShift = 0x0004;
     public event EventHandler? ToggleRequested;
-    public bool Registered { get; }
+    public bool Registered { get; private set; }
 
-    public HotkeyWindow()
+    public HotkeyWindow() => CreateHandle(new CreateParams());
+
+    public bool Configure(Settings settings)
     {
-        CreateHandle(new CreateParams());
-        Registered = RegisterHotKey(Handle, HotkeyId, ModAlt | ModControl, (uint)Keys.V);
+        if (Registered) UnregisterHotKey(Handle, HotkeyId);
+        uint modifiers = 0;
+        if (settings.HotkeyAlt) modifiers |= ModAlt;
+        if (settings.HotkeyControl) modifiers |= ModControl;
+        if (settings.HotkeyShift) modifiers |= ModShift;
+        Registered = RegisterHotKey(Handle, HotkeyId, modifiers, (uint)settings.HotkeyKey);
+        return Registered;
     }
 
     protected override void WndProc(ref Message message)
