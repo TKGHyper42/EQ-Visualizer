@@ -22,6 +22,7 @@ internal static class Program
             CaptureSettings();
             CheckIdlePreviewContrast();
             CheckImageFormats();
+            CheckArtworkBounds();
             CheckSystemEventThread();
             CheckUnknownSavedMode();
             File.WriteAllText(Path.Combine(output, "observations.json"), JsonSerializer.Serialize(Results, new JsonSerializerOptions { WriteIndented = true }));
@@ -93,6 +94,24 @@ internal static class Program
         Capture(settings, "settings-800x600");
         Observe("Settings capture coverage", false, $"{pages.Count} sections at top/bottom, all interface themes, 800x600 window. Live metadata, real audio, and desktop attachment are not exercised.");
         settings.Close();
+    }
+
+    private static void CheckArtworkBounds()
+    {
+        var method = Type("MediaSessionMonitor").GetMethod("NormalizeArtwork",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        if (method is null)
+            throw new InvalidOperationException("Media artwork must have a bounded resampling path.");
+        using var landscape = new Bitmap(1800, 900);
+        using var scaled = (Bitmap?)method.Invoke(null, [landscape]);
+        if (scaled is null || scaled.Width != 1024 || scaled.Height != 512)
+            throw new InvalidOperationException("Landscape artwork was not downsampled without distortion.");
+        using var oversized = new Bitmap(8193, 2);
+        using var rejected = (Bitmap?)method.Invoke(null, [oversized]);
+        if (rejected is not null)
+            throw new InvalidOperationException("Oversized artwork dimension was not rejected.");
+        Observe("Media artwork dimensions", false,
+            "1800x900 artwork resampled to 1024x512; oversized dimension rejected before persistent bitmap copy.");
     }
 
     private static void CheckImageFormats()
