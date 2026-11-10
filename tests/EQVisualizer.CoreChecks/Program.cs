@@ -38,6 +38,9 @@ for (int i = 0; i < 8192; i++)
 }
 antiphase.Push(opposite, 2, 16, false, 48000);
 Check(antiphase.Spectrum.Max() > .2f, "Antiphase stereo energy remains visible");
+int antiphasePeak = Array.IndexOf(antiphase.Spectrum, antiphase.Spectrum.Max());
+Check(Math.Abs(antiphasePeak - peaks[0]) <= 1,
+    "Antiphase stereo keeps the fundamental frequency without rectifying it");
 
 var low=new AudioAnalyzer();low.Push(Tone(32,true,100),2,32,true,48000);
 var high=new AudioAnalyzer();high.Push(Tone(32,true,6000),2,32,true,48000);
