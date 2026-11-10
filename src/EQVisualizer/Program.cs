@@ -54,6 +54,8 @@ internal sealed class Settings
     public bool ShowTrackInfo { get; set; }
     public float BarThickness { get; set; } = 1.6f;
     public float BackgroundBlur { get; set; } = 35;
+    public int InterfaceAccent { get; set; } = unchecked((int)0xFF6EE7CF);
+    public int InterfaceOpacity { get; set; } = 100;
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -92,6 +94,8 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
+        settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
+        Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
@@ -272,7 +276,7 @@ internal sealed class WallpaperContext : ApplicationContext
     private void ShowSettings()
     {
         var previous = (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift);
-        using var window = new SettingsForm(settings);
+        using var window = new SettingsForm(settings, forms.Count > 0 ? forms[0].CopyArtwork() : null);
         if (window.ShowDialog() != DialogResult.OK) return;
         if (!hotkey.Configure(settings))
         {
@@ -281,6 +285,7 @@ internal sealed class WallpaperContext : ApplicationContext
             tray.ShowBalloonTip(4000, "EQ Visualizer", "Atajo ocupado; se conservaron los atajos anteriores.", ToolTipIcon.Warning);
         }
         Save();
+        Ui.Accent = Color.FromArgb(settings.InterfaceAccent);
         foreach (var form in forms) form.RefreshState(true);
     }
 

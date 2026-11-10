@@ -14,9 +14,10 @@ internal static class Ui
         using var icon = new Icon(stream); return (Icon)icon.Clone();
     }
     public static Color Mix(Color a, Color b, float p) => Color.FromArgb((int)(a.R + (b.R - a.R) * p), (int)(a.G + (b.G - a.G) * p), (int)(a.B + (b.B - a.B) * p));
+    public static Color Accent { get; set; } = Color.FromArgb(110, 231, 207);
     public static readonly Color Background = Color.FromArgb(12, 16, 23), Sidebar = Color.FromArgb(16, 21, 30),
         Surface = Color.FromArgb(22, 29, 40), Elevated = Color.FromArgb(31, 41, 56), Line = Color.FromArgb(43, 56, 73),
-        Text = Color.FromArgb(238, 244, 250), Muted = Color.FromArgb(145, 160, 180), Accent = Color.FromArgb(110, 231, 207);
+        Text = Color.FromArgb(238, 244, 250), Muted = Color.FromArgb(145, 160, 180);
     public static Font Font(float size = 10, FontStyle style = FontStyle.Regular) => new("Segoe UI", size, style);
     public static GraphicsPath Round(RectangleF r, float radius = 12)
     {
@@ -51,15 +52,16 @@ internal class ModernForm : Form
         Chrome = chrome;
     }
     protected Panel Chrome { get; }
+    protected double WindowOpacity { get; set; } = 1;
     protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); using var pen = new Pen(Ui.Line); e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1); }
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e); var area = Screen.FromControl(this).WorkingArea;
         if (Width > area.Width || Height > area.Height) { MinimumSize = new Size(Math.Min(MinimumSize.Width, area.Width), Math.Min(MinimumSize.Height, area.Height)); Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); Location = new Point(area.X + (area.Width - Width) / 2, area.Y + (area.Height - Height) / 2); }
         if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { int corner = 2; DwmSetWindowAttribute(Handle, 33, ref corner, sizeof(int)); }
-        if (!Ui.Animate) { Opacity = 1; return; }
-        Opacity = .86;
-        var fade = new UiTween(() => Opacity = .86 + .14 * entrance!.Value);
+        if (!Ui.Animate) { Opacity = WindowOpacity; return; }
+        Opacity = Math.Max(.8, WindowOpacity - .14);
+        var fade = new UiTween(() => Opacity = Math.Max(.8, WindowOpacity - .14) + (WindowOpacity - Math.Max(.8, WindowOpacity - .14)) * entrance!.Value);
         entrance = fade; fade.Move(1, true);
     }
     private UiTween? entrance;
@@ -98,7 +100,7 @@ internal sealed class UiButton : Button
         var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(Parent?.BackColor ?? Ui.Background);
         var rect = new RectangleF(1, 1, Width - 2, Height - 2); using var path = Ui.Round(rect, 8);
         Color resting = Primary ? Ui.Accent : Quiet ? Parent?.BackColor ?? Ui.Sidebar : Ui.Surface;
-        Color target = Primary ? Color.FromArgb(147, 244, 224) : Selected ? Color.FromArgb(29, 61, 61) : Ui.Elevated;
+        Color target = Primary ? Ui.Mix(Ui.Accent, Color.White, .25f) : Selected ? Ui.Mix(Ui.Surface, Ui.Accent, .16f) : Ui.Elevated;
         Color bg = Ui.Mix(resting, target, animation.Value);
         using (var fill = new SolidBrush(bg)) g.FillPath(fill, path);
         if (Focused) { using var focus = new Pen(Ui.Accent, 1); g.DrawPath(focus, path); }
@@ -160,7 +162,7 @@ internal sealed class UiChip : CheckBox
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.Clear(Parent?.BackColor ?? Ui.Surface);
-        using var path = Ui.Round(new RectangleF(1, 1, Width - 2, Height - 2), 6); using var brush = new SolidBrush(Checked ? Color.FromArgb(29, 61, 61) : Ui.Elevated); g.FillPath(brush, path);
+        using var path = Ui.Round(new RectangleF(1, 1, Width - 2, Height - 2), 6); using var brush = new SolidBrush(Checked ? Ui.Mix(Ui.Elevated, Ui.Accent, .18f) : Ui.Elevated); g.FillPath(brush, path);
         if (Focused) { using var pen = new Pen(Ui.Accent); g.DrawPath(pen, path); }
         TextRenderer.DrawText(g, Text, Font, ClientRectangle, Checked ? Ui.Accent : Ui.Text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
@@ -176,7 +178,7 @@ internal sealed class UiSelect : ComboBox
     }
     protected override void OnDrawItem(DrawItemEventArgs e)
     {
-        using var brush = new SolidBrush((e.State & DrawItemState.Selected) != 0 ? Color.FromArgb(38, 70, 73) : Ui.Elevated); e.Graphics.FillRectangle(brush, e.Bounds);
+        using var brush = new SolidBrush((e.State & DrawItemState.Selected) != 0 ? Ui.Mix(Ui.Elevated, Ui.Accent, .19f) : Ui.Elevated); e.Graphics.FillRectangle(brush, e.Bounds);
         string text = e.Index < 0 ? Text : Items[e.Index]?.ToString() ?? "";
         TextRenderer.DrawText(e.Graphics, text, Font, new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 14, e.Bounds.Height), Ui.Text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
@@ -205,8 +207,9 @@ internal sealed class UiNumber : UserControl
     public decimal Increment { get; set; } = 1;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int DecimalPlaces { get; set; }
+    public event EventHandler? ValueChanged;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public decimal Value { get { Commit(); return value; } set { this.value = Math.Clamp(value, Minimum, Maximum); RefreshText(); } }
+    public decimal Value { get { Commit(); return value; } set { var previous = this.value; this.value = Math.Clamp(value, Minimum, Maximum); RefreshText(); if (previous != this.value) ValueChanged?.Invoke(this, EventArgs.Empty); } }
     public UiNumber()
     {
         Height = 36; MinimumSize = new Size(120, 36); BackColor = Ui.Elevated; Font = Ui.Font(); TabStop = false;
@@ -218,7 +221,7 @@ internal sealed class UiNumber : UserControl
         Controls.Add(input); Controls.Add(minus); Controls.Add(plus); RefreshText();
     }
     protected override void OnResize(EventArgs e) { base.OnResize(e); input.SetBounds(40, (Height - input.PreferredHeight) / 2, Math.Max(20, Width - 80), input.PreferredHeight); }
-    private void Commit() { if (input.Text != lastFormatted && decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) value = Math.Clamp(parsed, Minimum, Maximum); RefreshText(); }
+    private void Commit() { var previous = value; if (input.Text != lastFormatted && decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) value = Math.Clamp(parsed, Minimum, Maximum); RefreshText(); if (previous != value) ValueChanged?.Invoke(this, EventArgs.Empty); }
     private void RefreshText() { lastFormatted = value.ToString("F" + DecimalPlaces, CultureInfo.CurrentCulture); input.Text = lastFormatted; }
 }
 

@@ -27,7 +27,8 @@ Todo se integra detrás de tus iconos, para que puedas seguir usando tu escritor
 - **La portada como protagonista.** Un fondo inspirado en la canción, con un recorrido continuo entre sus imágenes.
 - **Movimiento que se siente.** Profundidad y paralaje suave al mover el cursor, con la opción de desactivarlos.
 - **El ritmo a tu manera.** Coloca el visualizador alrededor de la portada o sobre la barra de tareas.
-- **Todo en su sitio.** Ajusta posición, tamaño, intensidad y suavidad hasta encontrar tu combinación.
+- **Todo en su sitio.** Ajusta posición, tamaño, intensidad y suavidad hasta encontrar tu combinación. Mira el resultado en la vista previa antes de guardar.
+- **Una interfaz muy tuya.** Elige el color de acento y la transparencia de la ventana de ajustes.
 - **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
 - **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
 - **Una pausa cuando hace falta.** La animación descansa cuando el escritorio queda cubierto y vuelve cuando lo necesitas.
@@ -44,7 +45,7 @@ Reproduce una canción en tu aplicación de música. Si tienes varias abiertas, 
 
 ### 3. Dale tu toque
 
-Abre los ajustes desde el icono de la bandeja. Elige dónde colocar el visualizador y adapta la portada, el movimiento y los colores a tu escritorio.
+Abre los ajustes desde el icono de la bandeja. Elige dónde colocar el visualizador y adapta la portada y el movimiento. Comprueba el recuadro de vista previa, cambia el color de la interfaz y guarda cuando te guste el resultado.
 
 ### 4. Disfruta
 

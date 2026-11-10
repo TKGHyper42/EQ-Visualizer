@@ -41,7 +41,7 @@ internal sealed class WelcomeChoice(string title, string description, int mode) 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics; g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; g.Clear(Parent?.BackColor ?? Ui.Background);
-        using var path = Ui.Round(new RectangleF(1, 1, Width - 2, Height - 2), 14); using var bg = new SolidBrush(Checked ? Color.FromArgb(22, 45, 48) : Ui.Surface); g.FillPath(bg, path);
+        using var path = Ui.Round(new RectangleF(1, 1, Width - 2, Height - 2), 14); using var bg = new SolidBrush(Checked ? Ui.Mix(Ui.Surface, Ui.Accent, .12f) : Ui.Surface); g.FillPath(bg, path);
         using var border = new Pen(Checked || Focused ? Ui.Accent : Ui.Line, Checked ? 1.5f : 1); g.DrawPath(border, path);
         using var ink = new SolidBrush(Ui.Accent); g.FillRectangle(ink, Width / 2 - 20, 25, 40, 40);
         using var pen = new Pen(Color.FromArgb(150, Ui.Accent), 1.6f);

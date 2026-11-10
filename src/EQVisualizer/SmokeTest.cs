@@ -52,8 +52,18 @@ internal static class SmokeTest
             }
             var values = new Settings();
             var before = System.Text.Json.JsonSerializer.Serialize(values);
-            using var settings = new SettingsForm(values);
+            using var settings = new SettingsForm(values, new Bitmap(cover));
             settings.Show(); PumpAnimations();
+            var preview = FindPreview(settings);
+            if (preview is null || !preview.Visible || preview.Width < 100 || preview.Height < 100)
+                throw new InvalidOperationException("The settings preview is not visible.");
+            using (var previewImage = new Bitmap(preview.Width, preview.Height))
+            {
+                preview.DrawToBitmap(previewImage, new Rectangle(Point.Empty, previewImage.Size));
+                if (previewImage.GetPixel(previewImage.Width / 2, previewImage.Height / 2).ToArgb() == Ui.Background.ToArgb())
+                    throw new InvalidOperationException("The settings preview did not draw the current artwork.");
+                previewImage.Save(Path.Combine(directory, "settings-preview.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
             using var screenshot = new Bitmap(settings.Width, settings.Height);
             settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
             screenshot.Save(Path.Combine(directory, "settings.png"), System.Drawing.Imaging.ImageFormat.Png);
@@ -81,5 +91,15 @@ internal static class SmokeTest
     {
         var time = System.Diagnostics.Stopwatch.StartNew();
         while (time.ElapsedMilliseconds < 220) { Application.DoEvents(); Thread.Sleep(10); }
+    }
+    private static SettingsPreview? FindPreview(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child is SettingsPreview preview) return preview;
+            var nested = FindPreview(child);
+            if (nested is not null) return nested;
+        }
+        return null;
     }
 }

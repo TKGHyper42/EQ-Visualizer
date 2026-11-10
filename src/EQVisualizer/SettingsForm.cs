@@ -12,11 +12,17 @@ internal sealed class SettingsForm : ModernForm
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
     private readonly UiSelect toggleKey = KeysBox(), effectsKey = KeysBox();
+    private readonly SettingsPreview preview;
+    private Color selectedAccent;
+    private readonly UiButton accentButton = new() { Text = "Elegir color…", Width = 175 };
 
-    public SettingsForm(Settings settings) : base("EQ Visualizer / Ajustes")
+    public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes")
     {
         this.settings = settings;
-        ClientSize = new Size(940, 660); MinimumSize = new Size(820, 600);
+        selectedAccent = Color.FromArgb(settings.InterfaceAccent);
+        preview = new SettingsPreview(artwork);
+        WindowOpacity = settings.InterfaceOpacity / 100d;
+        ClientSize = new Size(940, 720); MinimumSize = new Size(820, 650);
         var body = new Panel { Dock = DockStyle.Fill };
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = Ui.Sidebar, Padding = new Padding(18, 26, 18, 20) };
         var brand = new Panel { Dock = DockStyle.Top, Height = 84 };
@@ -27,6 +33,8 @@ internal sealed class SettingsForm : ModernForm
         var note = new Label { Text = "HECHO PARA TU ESCRITORIO\n\nMúsica. Portadas. Movimiento.", Font = Ui.Font(8.5f), ForeColor = Ui.Muted, Dock = DockStyle.Bottom, Height = 66 };
         sidebar.Controls.Add(navigation); sidebar.Controls.Add(note); sidebar.Controls.Add(brand);
         contentHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(28, 24, 28, 12), BackColor = Ui.Background };
+        pageHost = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Background };
+        contentHost.Controls.Add(pageHost);
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 74, Padding = new Padding(28, 14, 28, 16), BackColor = Ui.Background };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 270, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         var save = new UiButton { Text = "Guardar cambios", DialogResult = DialogResult.OK, Primary = true, Width = 148, Margin = new Padding(8, 0, 0, 0) };
@@ -51,7 +59,15 @@ internal sealed class SettingsForm : ModernForm
         Number(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
         Number(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
         Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = (int)settings.ContrastMode;
+        Row(appearance, "Color de la interfaz", accentButton);
+        accentButton.Click += (_, _) =>
+        {
+            using var picker = new ColorDialog { Color = selectedAccent, FullOpen = true, AllowFullOpen = true };
+            if (picker.ShowDialog(this) == DialogResult.OK) { selectedAccent = picker.Color; UpdatePreview(); }
+        };
+        Number(appearance, "Transparencia de la ventana (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
         Hint(appearance, "El modo adaptativo sigue las posiciones que expone el Explorador. Si no están disponibles, Estado lo indica; puedes elegir oscurecer la imagen completa.");
+        Hint(appearance, "El color se usa en botones y detalles de la interfaz. La transparencia afecta solo a esta ventana de ajustes; 100 % es opaca.");
 
         var audio = Page("Audio", "Dale forma a lo que escuchas.");
         capture.Checked = settings.CaptureAudio; Row(audio, "Captura", capture);
@@ -83,11 +99,19 @@ internal sealed class SettingsForm : ModernForm
         var modifiers = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = false }; modifiers.Controls.AddRange([ctrl, alt, shift]);
         Row(hotkeys, "Modificadores", modifiers);
         Hint(hotkeys, "Por defecto: Ctrl + Alt + V activa el wallpaper; Ctrl + Alt + E alterna túnel y paralaje. Salir desde la bandeja revela el fondo original.");
+        preview.Dock = DockStyle.Top; preview.Height = 190;
+        contentHost.Controls.Add(preview); preview.BringToFront();
+        foreach (var box in numbers.Values) box.ValueChanged += (_, _) => UpdatePreview();
+        foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo }) box.CheckedChanged += (_, _) => UpdatePreview();
+        mode.SelectedIndexChanged += (_, _) => UpdatePreview();
+        contrast.SelectedIndexChanged += (_, _) => UpdatePreview();
+        UpdatePreview();
         SelectSection(0);
     }
     private readonly List<Panel> pages = [];
     private readonly List<UiButton> navigationButtons = [];
     private readonly Panel contentHost;
+    private readonly Panel pageHost;
     private readonly FlowLayoutPanel navigation;
     private readonly UiTween pageMotion;
     private Panel? slidingPage;
@@ -99,11 +123,23 @@ internal sealed class SettingsForm : ModernForm
         for (int i = 0; i < pages.Count; i++) { pages[i].Visible = i == index; navigationButtons[i].Selected = i == index; navigationButtons[i].Invalidate(); }
         if (index >= 0 && index < pages.Count)
         {
-            slidingPage = pages[index]; slidingPage.BringToFront(); contentHost.PerformLayout(); slidingBounds = slidingPage.Bounds;
+            slidingPage = pages[index]; slidingPage.BringToFront(); pageHost.PerformLayout(); slidingBounds = slidingPage.Bounds;
             slidingPage.Dock = DockStyle.None; pageMotion.Reset(0); pageMotion.Move(1, Visible);
         }
     }
     protected override void Dispose(bool disposing) { if (disposing) pageMotion?.Dispose(); base.Dispose(disposing); }
+    private void UpdatePreview()
+    {
+        if (!numbers.ContainsKey("layers")) return;
+        float N(string name) => (float)numbers[name].Value;
+        preview.SetOptions(new PreviewOptions((VisualizerMode)Math.Max(0, mode.SelectedIndex),
+            N("size") / 100, N("x") / 100, N("y") / 100, N("margin") / 100,
+            N("strength") / 100, N("sensitivity"), N("thickness") / 100,
+            (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
+            (ContrastMode)Math.Max(0, contrast.SelectedIndex)));
+        WindowOpacity = N("opacity") / 100d;
+        if (IsHandleCreated) Opacity = WindowOpacity;
+    }
     private static UiSelect Choices(params object[] items)
     {
         var box = new UiSelect { Dock = DockStyle.Fill }; box.Items.AddRange(items); return box;
@@ -123,7 +159,7 @@ internal sealed class SettingsForm : ModernForm
         var table = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(6, 0, 6, 4), BackColor = Ui.Surface };
         table.ColumnStyles.Add(new(SizeType.Percent, 52)); table.ColumnStyles.Add(new(SizeType.Percent, 48));
         var card = new UiCard { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(14) };
-        card.Controls.Add(table); page.Controls.Add(card); page.Controls.Add(heading); contentHost.Controls.Add(page); pages.Add(page);
+        card.Controls.Add(table); page.Controls.Add(card); page.Controls.Add(heading); pageHost.Controls.Add(page); pages.Add(page);
         var button = new UiButton { Text = $"{index + 1:00}   {title}", Navigation = true, Quiet = true, Width = 174, Height = 46, Margin = new Padding(0, 0, 0, 8) };
         button.Click += (_, _) => SelectSection(index); navigation.Controls.Add(button); navigationButtons.Add(button);
         return table;
@@ -157,6 +193,7 @@ internal sealed class SettingsForm : ModernForm
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
             settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
             settings.BackgroundBlur = N("blur");
+            settings.InterfaceAccent = selectedAccent.ToArgb(); settings.InterfaceOpacity = (int)N("opacity");
             settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
             settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;

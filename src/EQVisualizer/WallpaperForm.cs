@@ -29,6 +29,7 @@ internal sealed class WallpaperForm : Form
     public bool Attached => IsHandleCreated && DesktopHost.IsAttached(Handle);
     public Rectangle MonitorBounds => screen.Bounds;
     public bool NeedsAudio => timer.Enabled;
+    public Image? CopyArtwork() => artwork is null ? null : new Bitmap(artwork);
     public string RendererName => renderer is null ? "Compatibilidad GDI+" : renderer.UsesSoftware ? "Direct3D 11 (software)" : "Direct3D 11";
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
