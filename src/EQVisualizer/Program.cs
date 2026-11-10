@@ -4,7 +4,7 @@ using System.Text.Json;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
 using Microsoft.Win32;
-using Vortice.Mathematics;
+using Color4 = Vortice.Mathematics.Color4;
 
 namespace EQVisualizer;
 
