@@ -64,6 +64,12 @@ jobs:
               Copy-Item $_.FullName $target
             }
           }
+          $sdkLicenseDirectory = New-Item -ItemType Directory -Force "$destination/licenses/windows-sdk"
+          $sdkLicense = Join-Path $sdkLicenseDirectory.FullName "LICENSE.rtf"
+          Invoke-WebRequest -Uri "https://download.microsoft.com/download/0/F/F/0FF2B061-47DD-4F55-89B6-FD1D8C44F14D/sdk_license.rtf" -OutFile $sdkLicense
+          if ((Get-FileHash $sdkLicense -Algorithm SHA256).Hash.ToLowerInvariant() -ne "dd07eb178e00c6bba4148457fc00ff77cd4887eb521d504186fe59c9ec8bbe62") {
+            throw "Windows SDK license differs from the reviewed document"
+          }
           $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
       - uses: actions/upload-artifact@v4
@@ -110,10 +116,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
-          tag="private-build-$GITHUB_RUN_ID"
-          gh release create "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" \
-            --title "EQ Visualizer — compilación privada de prueba" --draft --prerelease \
-            --notes "Compilaciones de prueba para Windows x64 y x86. Extrae el ZIP completo y ejecuta EQVisualizer.exe. Los ZIP incluyen la guía y las licencias de distribución." \
+          tag="private-build-42803499255"
+          test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
+          gh release edit "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" --draft --prerelease
+          gh release upload "$tag" --repo TKGHyper42/EQ-Visualizer --clobber \
             downloads/EQVisualizer-win-x64.exe downloads/EQVisualizer-win-x86.exe \
             downloads/EQVisualizer-win-x64.zip downloads/EQVisualizer-win-x86.zip downloads/SHA256SUMS.txt
           gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft,isPrerelease,url,tagName,assets

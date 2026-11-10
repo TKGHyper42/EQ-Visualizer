@@ -20,6 +20,7 @@ internal static class Program
         try
         {
             CaptureSettings();
+            CheckIdlePreviewContrast();
             CheckImageFormats();
             CheckSystemEventThread();
             CheckUnknownSavedMode();
@@ -141,8 +142,33 @@ internal static class Program
             if (!completed.IsSet) throw new TimeoutException("SystemEvents probe did not complete.");
         }
         finally { Control.CheckForIllegalCrossThreadCalls = previous; }
-        Observe("Session event UI access", failure is not null,
-            $"UI thread {uiThread}, system event thread {eventThread}: " + (failure?.Message ?? "No exception observed."));
+        Observe("Synthetic worker-thread callback", failure is not null,
+            $"UI thread {uiThread}, worker thread {eventThread}: " + (failure?.Message ?? "No exception observed.") +
+            " Actual SystemEvents delivery and its synchronization-context marshaling are not exercised by this direct-handler probe.");
+    }
+
+    private static void CheckIdlePreviewContrast()
+    {
+        using var form = SettingsWindow(Settings());
+        var fields = Type("SettingsForm");
+        var idle = (ComboBox)fields.GetField("idleMode", Instance)!.GetValue(form)!;
+        var contrast = (ComboBox)fields.GetField("contrast", Instance)!.GetValue(form)!;
+        var toggle = (CheckBox)fields.GetField("previewIdle", Instance)!.GetValue(form)!;
+        var preview = (Control)fields.GetField("preview", Instance)!.GetValue(form)!;
+        form.Show(); idle.SelectedIndex = 1; toggle.Checked = true;
+        Color Sample(int mode, string name)
+        {
+            contrast.SelectedIndex = mode; Pump();
+            using var image = new Bitmap(preview.Width, preview.Height);
+            preview.DrawToBitmap(image, new Rectangle(Point.Empty, image.Size));
+            image.Save(Path.Combine(output, name + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+            return image.GetPixel(50, 55);
+        }
+        var off = Sample(2, "idle-preview-contrast-off");
+        var whole = Sample(1, "idle-preview-contrast-whole");
+        Observe("Idle preview whole-image contrast", off.ToArgb() == whole.ToArgb(),
+            $"Off={off.ToArgb():X8}; whole-image={whole.ToArgb():X8}. The wallpaper applies whole-image shading in idle mode, so equal preview pixels indicate a mismatch.");
+        form.Close();
     }
 
     private static void CheckUnknownSavedMode()

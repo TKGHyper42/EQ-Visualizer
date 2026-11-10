@@ -57,3 +57,12 @@ Windows Desktop runtime, and Windows SDK .NET runtime components. Microsoft
 licensing and third-party notices supplied with the restored packages are
 included under licenses/ in the distribution. These notices remain applicable
 to those components and do not change EQ Visualizer's own license.
+
+Microsoft.Windows.SDK.NET.Ref supplies the Windows SDK .NET projection/runtime
+assemblies used for Windows multimedia sessions. Copyright (c) Microsoft
+Corporation. All rights reserved. This SDK is governed by the Microsoft Windows
+SDK license terms, not by this project's MIT license. The SDK's original terms
+are included at licenses/windows-sdk/LICENSE.rtf in the ZIP distribution.
+https://aka.ms/WinSDKLicenseURL
+Only the required runtime components are bundled, unmodified, for Windows use;
+the Windows SDK itself and its developer tools are not redistributed.
