@@ -321,7 +321,7 @@ internal sealed class WallpaperForm : Form
     public void RefreshState()
     {
         timer.Interval = Math.Max(8, 1000 / settings.Fps);
-        timer.Enabled = settings.Enabled && !systemPaused;
+        timer.Enabled = settings.Enabled && !systemPaused && isPlaying;
         if (!settings.Enabled) Invalidate();
     }
     public void SetAttached() => Attached = true;
@@ -333,6 +333,7 @@ internal sealed class WallpaperForm : Form
         if (artwork is not null) (primaryColor, secondaryColor) = ExtractPalette(artwork);
         else { primaryColor = Color.FromArgb(53, 218, 255); secondaryColor = Color.FromArgb(177, 65, 255); }
         isPlaying = playing;
+        RefreshState();
         Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e)
