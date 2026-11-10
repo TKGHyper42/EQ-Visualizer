@@ -6,8 +6,10 @@ internal static class SmokeTest
     public static int Run(string directory)
     {
         Directory.CreateDirectory(directory);
+        void Step(string text) => File.AppendAllText(Path.Combine(directory, "smoke-progress.txt"), text + Environment.NewLine);
         try
         {
+            Step("Creating test window");
             using var window = new Form { ClientSize = new Size(960, 540), ShowInTaskbar = false, FormBorderStyle = FormBorderStyle.None };
             _ = window.Handle;
             using var cover = new Bitmap(256, 256);
@@ -18,22 +20,34 @@ internal static class SmokeTest
                 using var pen = new Pen(Color.FromArgb(180, 255, 255, 255), 9);
                 for (int i = 0; i < 7; i++) g.DrawEllipse(pen, 30 + i * 11, 20 + i * 7, 160 - i * 12, 190 - i * 15);
             }
+            Step("Creating Direct3D renderer");
             using var renderer = new D3D11Renderer(window.Handle, 960, 540);
+            Step("Uploading artwork");
             renderer.SetArtwork(cover);
             var scene = new VisualScene();
             var spectrum = Enumerable.Range(0, 64).Select(i => .25f + .25f * MathF.Sin(i * .3f)).ToArray();
             scene.Build(new(960, 540, .35f, new(.5f, .48f), .36f, 1, 1, true, true, true, .94f, 8, new(0, 1, 1, 1), new(1, 0, 1, 1)), spectrum, []);
+            Step("Drawing and reading pixels");
             renderer.Render(scene.Vertices, Path.Combine(directory, "renderer.png"));
             renderer.Resize(640, 360); renderer.Render(scene.Vertices);
             renderer.SetArtwork(null); renderer.Render([]);
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
+            Step("Capturing settings form");
             using var settings = new SettingsForm(new Settings());
             settings.Show(); Application.DoEvents();
             using var screenshot = new Bitmap(settings.Width, settings.Height);
             settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
             screenshot.Save(Path.Combine(directory, "settings.png"), System.Drawing.Imaging.ImageFormat.Png);
+            var tabs = settings.Controls.OfType<TabControl>().Single();
+            for (int i = 0; i < tabs.TabPages.Count; i++)
+            {
+                tabs.SelectedIndex = i; Application.DoEvents();
+                settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
+                screenshot.Save(Path.Combine(directory, $"settings-{i}.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
             settings.Close();
             File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: embedded shaders, texture upload, draw, resize, artwork removal/reload. Renderer: " + (renderer.UsesSoftware ? "WARP" : "hardware") + ". Desktop integration and real audio not exercised.");
+            Step("Completed");
             return 0;
         }
         catch (Exception e) { File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), e.ToString()); return 1; }

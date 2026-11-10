@@ -128,7 +128,7 @@ internal sealed class WallpaperContext : ApplicationContext
         {
             var form = new WallpaperForm(screen, settings, audio);
             forms.Add(form);
-            form.Show();
+            _ = form.Handle;
             if (!DesktopHost.Attach(form.Handle))
             {
                 form.Hide();
@@ -238,7 +238,7 @@ internal sealed class WallpaperContext : ApplicationContext
         if (exiting) return;
         foreach (var form in forms)
         {
-            if (!systemPaused && settings.Enabled && !DesktopHost.IsAttached(form.Handle))
+            if (!systemPaused && settings.Enabled && pollCount % 4 == 0 && !DesktopHost.IsAttached(form.Handle))
                 DesktopHost.Attach(form.Handle);
             form.RefreshState();
         }
@@ -253,12 +253,17 @@ internal sealed class WallpaperContext : ApplicationContext
     }
     private void ShowSettings()
     {
+        var previous = (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift);
         using var window = new SettingsForm(settings);
         if (window.ShowDialog() != DialogResult.OK) return;
+        if (!hotkey.Configure(settings))
+        {
+            (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
+            hotkey.Configure(settings);
+            tray.ShowBalloonTip(4000, "EQ Visualizer", "Atajo ocupado; se conservaron los atajos anteriores.", ToolTipIcon.Warning);
+        }
         Save();
         foreach (var form in forms) form.RefreshState(true);
-        if (!hotkey.Configure(settings))
-            tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo elegido ya está en uso.", ToolTipIcon.Warning);
     }
 
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }

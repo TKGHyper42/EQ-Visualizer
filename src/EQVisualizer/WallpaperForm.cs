@@ -23,6 +23,7 @@ internal sealed class WallpaperForm : Form
     private Vector4 primary = new(.2f, .85f, 1, 1), secondary = new(.7f, .25f, 1, 1);
     private ShadeRegion[] shades = [];
     public bool Attached => IsHandleCreated && DesktopHost.IsAttached(Handle);
+    public Rectangle MonitorBounds => screen.Bounds;
     public bool NeedsAudio => timer.Enabled;
     public string RendererName => renderer is null ? "Compatibilidad GDI+" : renderer.UsesSoftware ? "Direct3D 11 (software)" : "Direct3D 11";
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)

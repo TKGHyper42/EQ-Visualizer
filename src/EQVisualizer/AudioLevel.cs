@@ -11,6 +11,7 @@ internal sealed class AudioLevel : IDisposable
     private float[] bands = new float[64];
     private long updated;
     private string? activeId;
+    private volatile bool captureFailed;
     public string? Error { get; private set; }
     public float[] Bands => Stopwatch.GetElapsedTime(Volatile.Read(ref updated)).TotalSeconds < .3 ? Volatile.Read(ref bands) : new float[64];
 
@@ -21,7 +22,7 @@ internal sealed class AudioLevel : IDisposable
         {
             using var endpoints = new MMDeviceEnumerator();
             using var selected = deviceId is null ? endpoints.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia) : endpoints.GetDevice(deviceId);
-            if (capture is null || activeId != selected.ID) Start(selected.ID);
+            if (capture is null || captureFailed || activeId != selected.ID) Start(selected.ID);
         }
         catch (Exception e) { Error = e.Message; Stop(); }
     }
@@ -33,7 +34,7 @@ internal sealed class AudioLevel : IDisposable
             using var endpoints = new MMDeviceEnumerator();
             device = deviceId is null ? endpoints.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia) : endpoints.GetDevice(deviceId);
             var source = new WasapiLoopbackCapture(device); capture = source; activeId = device.ID;
-            analyzer.Reset(); Error = null;
+            analyzer.Reset(); Error = null; captureFailed = false;
             source.DataAvailable += (_, e) =>
             {
                 if (!ReferenceEquals(capture, source)) return;
@@ -44,7 +45,7 @@ internal sealed class AudioLevel : IDisposable
                 Volatile.Write(ref bands, analyzer.Spectrum);
                 Volatile.Write(ref updated, Stopwatch.GetTimestamp());
             };
-            source.RecordingStopped += (_, e) => { if (e.Exception is not null) Error = e.Exception.Message; };
+            source.RecordingStopped += (_, e) => { if (ReferenceEquals(capture, source)) { captureFailed = true; if (e.Exception is not null) Error = e.Exception.Message; } };
             source.StartRecording();
         }
         catch { Stop(); throw; }

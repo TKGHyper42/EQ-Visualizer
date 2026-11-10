@@ -10,6 +10,9 @@ internal static class DesktopHost
     private static IntPtr worker;
     public static bool Attach(IntPtr hwnd)
     {
+        var form = Control.FromHandle(hwnd) as WallpaperForm;
+        if (form is null) return false;
+        var bounds = form.MonitorBounds;
         if (worker != IntPtr.Zero && !IsWindow(worker)) worker = IntPtr.Zero;
         if (worker == IntPtr.Zero)
         {
@@ -31,9 +34,6 @@ internal static class DesktopHost
         else SetWindowLongPtr(hwnd, GWL_STYLE, (GetWindowLongPtr(hwnd, GWL_STYLE).ToInt64() | WS_CHILD) & ~WS_POPUP);
         Marshal.SetLastPInvokeError(0);
         if (SetParent(hwnd, worker) == IntPtr.Zero && Marshal.GetLastPInvokeError() != 0) return false;
-        var form = Control.FromHandle(hwnd) as WallpaperForm;
-        if (form is null) return false;
-        var bounds = Screen.FromControl(form).Bounds;
         var origin = new POINT { X = bounds.X, Y = bounds.Y };
         ScreenToClient(worker, ref origin);
         SetWindowPos(hwnd, IntPtr.Zero, origin.X, origin.Y, bounds.Width, bounds.Height, 0x0014);
@@ -45,20 +45,27 @@ internal static class DesktopHost
 
     public static bool IsCovered(Rectangle bounds)
     {
-        IntPtr front = GetForegroundWindow();
-        if (front == IntPtr.Zero || !GetWindowRect(front, out var r) || IsIconic(front)) return false;
-        if (front == worker || front == FindWindow("Progman", null)) return false;
-        var cls = new System.Text.StringBuilder(256);
-        GetClassName(front, cls, cls.Capacity);
-        if (cls.ToString() is "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
-        if (IsZoomed(front)) bounds = Screen.FromRectangle(bounds).WorkingArea;
-        var overlap = Rectangle.Intersect(bounds, Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom));
-        return overlap.Width >= bounds.Width * .95 && overlap.Height >= bounds.Height * .95;
+        bool covered = false;
+        EnumWindows((window, _) =>
+        {
+            if (!IsWindowVisible(window) || IsIconic(window) || window == worker || GetParent(window) == worker) return true;
+            var cls = new System.Text.StringBuilder(256); GetClassName(window, cls, cls.Capacity);
+            if (cls.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return true;
+            DwmGetWindowAttribute(window, 14, out int cloaked, sizeof(int));
+            if (cloaked != 0 || !GetWindowRect(window, out var r)) return true;
+            var area = IsZoomed(window) ? Screen.FromRectangle(bounds).WorkingArea : bounds;
+            var overlap = Rectangle.Intersect(area, Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom));
+            covered = overlap.Width >= area.Width * .95 && overlap.Height >= area.Height * .95;
+            return !covered;
+        }, IntPtr.Zero);
+        return covered;
     }
     private delegate bool EnumProc(IntPtr hwnd, IntPtr param);
     [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr hwnd, ref POINT p);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out int value, int size);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder name, int max);
     private struct POINT { public int X, Y; }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string cls, string? name);

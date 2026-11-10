@@ -10,12 +10,19 @@ internal sealed class DesktopIconContrast
     public async Task<Rectangle[]> RefreshAsync()
     {
         if (Interlocked.Exchange(ref busy, 1) != 0) return last;
+        var pending = Task.Run(Read);
         try
         {
-            var result = await Task.Run(Read);
+            var result = await pending.WaitAsync(TimeSpan.FromSeconds(1));
             last = result.Rects; Status = result.Status; return last;
         }
-        finally { Volatile.Write(ref busy, 0); }
+        catch (TimeoutException)
+        {
+            Status = "El Explorador no responde; puedes elegir Oscurecer imagen";
+            _ = pending.ContinueWith(_ => Volatile.Write(ref busy, 0), TaskScheduler.Default);
+            return last;
+        }
+        finally { if (pending.IsCompleted) Volatile.Write(ref busy, 0); }
     }
     private static (Rectangle[] Rects, string Status) Read()
     {

@@ -23,6 +23,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
 {
     private bool disposed;
     private int generation;
+    private readonly SemaphoreSlim selectionGate = new(1, 1);
     private GlobalSystemMediaTransportControlsSessionManager? manager;
     private GlobalSystemMediaTransportControlsSession? session;
     private string? preferredSourceId;
@@ -35,6 +36,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         {
             preferredSourceId = sourceId;
             manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            if (disposed) return;
             manager.CurrentSessionChanged += OnCurrentSessionChanged;
             manager.SessionsChanged += OnSessionsChanged;
             await PublishSessionsAsync();
@@ -65,50 +67,55 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
 
     private async Task SelectCurrentSessionAsync()
     {
-        if (disposed) return;
-        Interlocked.Increment(ref generation);
-        if (session is not null)
+        await selectionGate.WaitAsync();
+        try
         {
-            session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-            session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
-        }
-        session = manager is null ? null :
-            (preferredSourceId is null
-                ? manager.GetCurrentSession()
-                : manager.GetSessions().FirstOrDefault(item =>
-                    string.Equals(item.SourceAppUserModelId, preferredSourceId, StringComparison.Ordinal)));
-        if (preferredSourceId is null && manager is not null)
-        {
-            bool currentIsMusic = false;
+            if (disposed) return;
+            Interlocked.Increment(ref generation);
             if (session is not null)
             {
-                try { currentIsMusic = IsMusic(await session.TryGetMediaPropertiesAsync()); } catch { }
+                session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
+                session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
             }
-            if (!currentIsMusic)
+            session = manager is null ? null :
+                (preferredSourceId is null
+                    ? manager.GetCurrentSession()
+                    : manager.GetSessions().FirstOrDefault(item =>
+                        string.Equals(item.SourceAppUserModelId, preferredSourceId, StringComparison.Ordinal)));
+            if (preferredSourceId is null && manager is not null)
             {
-                session = null;
-                foreach (var candidate in manager.GetSessions())
+                bool currentIsMusic = false;
+                if (session is not null)
                 {
-                    try
+                    try { currentIsMusic = IsMusic(await session.TryGetMediaPropertiesAsync()); } catch { }
+                }
+                if (!currentIsMusic)
+                {
+                    session = null;
+                    foreach (var candidate in manager.GetSessions())
                     {
-                        if (!IsMusic(await candidate.TryGetMediaPropertiesAsync())) continue;
-                        session = candidate;
-                        if (candidate.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) break;
+                        try
+                        {
+                            if (!IsMusic(await candidate.TryGetMediaPropertiesAsync())) continue;
+                            session = candidate;
+                            if (candidate.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing) break;
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
             }
+            if (session is null) { Publish("", "", null, false); return; }
+            session.MediaPropertiesChanged += OnMediaPropertiesChanged;
+            session.PlaybackInfoChanged += OnPlaybackInfoChanged;
+            await PublishSessionAsync();
         }
-        if (session is null) { Publish("", "", null, false); return; }
-        session.MediaPropertiesChanged += OnMediaPropertiesChanged;
-        session.PlaybackInfoChanged += OnPlaybackInfoChanged;
-        await PublishSessionAsync();
+        finally { selectionGate.Release(); }
     }
 
     private async void OnMediaPropertiesChanged(
         GlobalSystemMediaTransportControlsSession sender,
         MediaPropertiesChangedEventArgs args)
-    { await PublishSessionAsync(); await PublishSessionsAsync(); }
+    { try { await PublishSessionAsync(); await PublishSessionsAsync(); } catch { } }
 
     private async void OnPlaybackInfoChanged(
         GlobalSystemMediaTransportControlsSession sender,
@@ -116,7 +123,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
 
     private async Task PublishSessionsAsync()
     {
-        if (manager is null) return;
+        if (disposed || manager is null) return;
         var choices = new List<MediaSessionChoice>();
         foreach (var item in manager.GetSessions())
         {
@@ -131,20 +138,20 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
                         : $"{properties.Title} — {properties.Artist}";
             }
             catch { continue; }
-            choices.Add(new MediaSessionChoice(item.SourceAppUserModelId, label));
+            choices.Add(new MediaSessionChoice(item.SourceAppUserModelId, label + " · " + item.SourceAppUserModelId));
         }
-        context.Post(_ => SessionsChanged?.Invoke(this,
-            new MediaSessionsChangedEventArgs(choices)), null);
+        context.Post(_ => { if (!disposed) SessionsChanged?.Invoke(this, new MediaSessionsChangedEventArgs(choices)); }, null);
     }
 
     private async Task PublishSessionAsync()
     {
         int version = Interlocked.Increment(ref generation);
         var current = session;
-        if (current is null) return;
+        if (disposed || current is null) return;
         try
         {
             var properties = await current.TryGetMediaPropertiesAsync();
+            if (disposed || version != generation || !ReferenceEquals(current, session)) return;
             if (!IsMusic(properties)) { Publish("", "", null, false); return; }
             Image? image = properties.Thumbnail is null ? null : await ReadArtworkAsync(properties.Thumbnail);
             bool playing = current.GetPlaybackInfo().PlaybackStatus ==
