@@ -34,6 +34,7 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly List<WallpaperForm> forms = [];
     private readonly NotifyIcon tray;
     private readonly AudioLevel audio = new();
+    private readonly MediaSessionMonitor media = new();
     private readonly Settings settings;
     private readonly HotkeyWindow hotkey = new();
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 2000 };
@@ -90,6 +91,17 @@ internal sealed class WallpaperContext : ApplicationContext
                 tray.ShowBalloonTip(5000, "EQ Visualizer", "No se pudo integrar detrás de los iconos. Cerrando.", ToolTipIcon.Error);
         }
         if (forms.Count == 0 || forms.Any(f => !f.Attached)) ExitThread();
+        media.Changed += OnMediaChanged;
+        _ = media.StartAsync();
+    }
+
+    private void OnMediaChanged(object? sender, NowPlayingChangedEventArgs e)
+    {
+        string label = string.IsNullOrWhiteSpace(e.Title) ? "EQ Visualizer" :
+            string.IsNullOrWhiteSpace(e.Artist) ? e.Title : $"{e.Title} — {e.Artist}";
+        tray.Text = label.Length > 63 ? label[..63] : label;
+        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying);
+        e.Artwork?.Dispose();
     }
 
     private void Toggle()
@@ -161,6 +173,7 @@ internal sealed class WallpaperContext : ApplicationContext
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         hotkey.Dispose();
+        media.Dispose();
         foreach (var f in forms) { f.Close(); f.Dispose(); }
         audio.Dispose();
         tray.Visible = false;
@@ -241,6 +254,8 @@ internal sealed class WallpaperForm : Form
     private readonly Screen screen;
     private float phase;
     private bool systemPaused;
+    private Image? artwork;
+    private bool isPlaying;
     public bool Attached { get; private set; }
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
@@ -264,6 +279,13 @@ internal sealed class WallpaperForm : Form
     }
     public void SetAttached() => Attached = true;
     public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
+    public void SetNowPlaying(Image? image, bool playing)
+    {
+        artwork?.Dispose();
+        artwork = image is null ? null : new Bitmap(image);
+        isPlaying = playing;
+        Invalidate();
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -273,13 +295,30 @@ internal sealed class WallpaperForm : Form
         float cx = Width / 2f, cy = Height / 2f;
         float unit = Math.Min(Width, Height);
         float energy = audio.Level * settings.Strength;
-        for (int i = 14; i >= 0; i--)
+        if (artwork is not null)
         {
-            float depth = ((i / 15f + phase) % 1f);
-            float size = unit * (.08f + depth * .72f);
-            int alpha = (int)(90 * (1 - depth));
-            using var pen = new Pen(Color.FromArgb(alpha, 35 + (int)(energy * 160), 130, 230), 2 + energy * 12);
-            g.DrawRectangle(pen, cx - size / 2, cy - size / 2, size, size);
+            for (int i = 9; i >= 0; i--)
+            {
+                float depth = ((i / 10f + phase) % 1f);
+                float size = unit * (.16f + depth * .56f);
+                float drift = MathF.Sin(phase * 3 + i * .45f) * unit * .035f;
+                var target = new RectangleF(cx - size / 2 + drift, cy - size / 2, size, size);
+                using var attributes = new System.Drawing.Imaging.ImageAttributes();
+                var matrix = new System.Drawing.Imaging.ColorMatrix { Matrix33 = .18f + (1 - depth) * .72f };
+                attributes.SetColorMatrix(matrix);
+                g.DrawImage(artwork, Rectangle.Round(target), 0, 0, artwork.Width, artwork.Height, GraphicsUnit.Pixel, attributes);
+            }
+        }
+        else
+        {
+            for (int i = 14; i >= 0; i--)
+            {
+                float depth = ((i / 15f + phase) % 1f);
+                float size = unit * (.08f + depth * .72f);
+                int alpha = (int)(90 * (1 - depth));
+                using var pen = new Pen(Color.FromArgb(alpha, 35 + (int)(energy * 160), 130, 230), 2 + energy * 12);
+                g.DrawRectangle(pen, cx - size / 2, cy - size / 2, size, size);
+            }
         }
         int bars = 64;
         var spectrum = audio.Bands;
@@ -292,7 +331,11 @@ internal sealed class WallpaperForm : Form
             g.FillRectangle(brush, x0 + i * bandW / bars, bandY - h, bandW / bars * .55f, h);
         }
     }
-    protected override void Dispose(bool disposing) { if (disposing) timer.Dispose(); base.Dispose(disposing); }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { timer.Dispose(); artwork?.Dispose(); }
+        base.Dispose(disposing);
+    }
 }
 
 internal static class DesktopHost
