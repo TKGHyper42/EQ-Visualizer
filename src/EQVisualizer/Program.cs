@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
+using Microsoft.Win32;
 
 namespace EQVisualizer;
 
@@ -30,6 +31,9 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly NotifyIcon tray;
     private readonly AudioLevel audio = new();
     private readonly Settings settings;
+    private readonly HotkeyWindow hotkey = new();
+    private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 2000 };
+    private bool systemPaused;
     private readonly string settingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "EQVisualizer", "settings.json");
@@ -63,6 +67,13 @@ internal sealed class WallpaperContext : ApplicationContext
         menu.Items.Add("Salir", null, (_, _) => ExitThread());
         tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "EQ Visualizer (prototipo)", ContextMenuStrip = menu, Visible = true };
         tray.DoubleClick += (_, _) => Toggle();
+        hotkey.ToggleRequested += (_, _) => Toggle();
+        if (!hotkey.Registered)
+            tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo Ctrl + Alt + V ya está en uso.", ToolTipIcon.Warning);
+        SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        recoveryTimer.Tick += (_, _) => RecoverDesktop();
+        recoveryTimer.Start();
         try { audio.Start(settings.AudioDeviceId); }
         catch (Exception e) { tray.ShowBalloonTip(4000, "EQ Visualizer", "Captura de audio no disponible: " + e.Message, ToolTipIcon.Warning); }
         foreach (var screen in Screen.AllScreens)
@@ -76,7 +87,41 @@ internal sealed class WallpaperContext : ApplicationContext
         if (forms.Count == 0 || forms.Any(f => !f.Attached)) ExitThread();
     }
 
-    private void Toggle() { settings.Enabled = !settings.Enabled; Save(); foreach (var f in forms) f.RefreshState(); }
+    private void Toggle()
+    {
+        settings.Enabled = !settings.Enabled;
+        Save();
+        foreach (var f in forms) f.RefreshState();
+        tray.Text = settings.Enabled ? "EQ Visualizer" : "EQ Visualizer (pausado)";
+    }
+
+    private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason == SessionSwitchReason.SessionLock) SetSystemPaused(true);
+        else if (e.Reason == SessionSwitchReason.SessionUnlock) SetSystemPaused(false);
+    }
+
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == PowerModes.Suspend) SetSystemPaused(true);
+        else if (e.Mode == PowerModes.Resume) SetSystemPaused(false);
+    }
+
+    private void SetSystemPaused(bool paused)
+    {
+        systemPaused = paused;
+        foreach (var f in forms) f.SetSystemPaused(paused);
+    }
+
+    private void RecoverDesktop()
+    {
+        if (systemPaused || !settings.Enabled) return;
+        foreach (var form in forms)
+        {
+            if (!DesktopHost.IsAttached(form.Handle))
+                DesktopHost.Attach(form.Handle);
+        }
+    }
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
     private void SetStrength(float strength) { settings.Strength = Math.Clamp(strength, 0, 3); Save(); }
     private void SetDevice(string? id)
@@ -96,6 +141,11 @@ internal sealed class WallpaperContext : ApplicationContext
     }
     protected override void ExitThreadCore()
     {
+        recoveryTimer.Stop();
+        recoveryTimer.Dispose();
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        hotkey.Dispose();
         foreach (var f in forms) { f.Close(); f.Dispose(); }
         audio.Dispose();
         tray.Visible = false;
@@ -175,6 +225,7 @@ internal sealed class WallpaperForm : Form
     private readonly System.Windows.Forms.Timer timer = new();
     private readonly Screen screen;
     private float phase;
+    private bool systemPaused;
     public bool Attached { get; private set; }
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
@@ -193,10 +244,11 @@ internal sealed class WallpaperForm : Form
     public void RefreshState()
     {
         timer.Interval = Math.Max(8, 1000 / settings.Fps);
-        timer.Enabled = settings.Enabled;
+        timer.Enabled = settings.Enabled && !systemPaused;
         if (!settings.Enabled) Invalidate();
     }
     public void SetAttached() => Attached = true;
+    public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -237,6 +289,7 @@ internal static class DesktopHost
     private static IntPtr worker;
     public static bool Attach(IntPtr hwnd)
     {
+        if (worker != IntPtr.Zero && !IsWindow(worker)) worker = IntPtr.Zero;
         if (worker == IntPtr.Zero)
         {
             IntPtr progman = FindWindow("Progman", null);
@@ -261,6 +314,9 @@ internal static class DesktopHost
         form.SetAttached();
         return true;
     }
+    public static bool IsAttached(IntPtr hwnd)
+        => IsWindow(hwnd) && worker != IntPtr.Zero && IsWindow(worker) && GetParent(hwnd) == worker;
+
     public static bool IsCovered(Rectangle bounds)
     {
         IntPtr front = GetForegroundWindow();
@@ -279,7 +335,44 @@ internal static class DesktopHost
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, long value);
     [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     private struct RECT { public int Left, Top, Right, Bottom; }
+}
+
+internal sealed class HotkeyWindow : NativeWindow, IDisposable
+{
+    private const int HotkeyId = 0x4551;
+    private const int WmHotkey = 0x0312;
+    private const uint ModAlt = 0x0001;
+    private const uint ModControl = 0x0002;
+    public event EventHandler? ToggleRequested;
+    public bool Registered { get; }
+
+    public HotkeyWindow()
+    {
+        CreateHandle(new CreateParams());
+        Registered = RegisterHotKey(Handle, HotkeyId, ModAlt | ModControl, (uint)Keys.V);
+    }
+
+    protected override void WndProc(ref Message message)
+    {
+        if (message.Msg == WmHotkey && message.WParam.ToInt32() == HotkeyId)
+            ToggleRequested?.Invoke(this, EventArgs.Empty);
+        base.WndProc(ref message);
+    }
+
+    public void Dispose()
+    {
+        if (Registered) UnregisterHotKey(Handle, HotkeyId);
+        DestroyHandle();
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint virtualKey);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 }
