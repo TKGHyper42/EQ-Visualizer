@@ -82,7 +82,7 @@ internal sealed class D3D11Renderer : IDisposable
         swapChain.Present(1, PresentFlags.None);
     }
 
-    public unsafe void Draw(ReadOnlySpan<GpuVertex> vertices)
+    public void Draw(ReadOnlySpan<GpuVertex> vertices)
     {
         if (vertices.Length == 0 || vertices.Length > 4096 || target is null) return;
         var mapped = graphics.Context.Map(vertexBuffer, 0, MapMode.WriteDiscard);
