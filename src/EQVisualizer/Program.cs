@@ -17,6 +17,8 @@ internal static class Program
     }
 }
 
+internal enum VisualizerMode { Cover, Bottom, Both }
+
 internal sealed class Settings
 {
     public int Fps { get; set; } = 45;
@@ -28,6 +30,10 @@ internal sealed class Settings
     public bool HotkeyControl { get; set; } = true;
     public bool HotkeyAlt { get; set; } = true;
     public bool HotkeyShift { get; set; }
+    public VisualizerMode VisualizerMode { get; set; } = VisualizerMode.Both;
+    public bool EnableParallax { get; set; } = true;
+    public float ParallaxStrength { get; set; } = 1f;
+    public bool HasCompletedWelcome { get; set; }
 }
 
 internal sealed class WallpaperContext : ApplicationContext
@@ -51,6 +57,7 @@ internal sealed class WallpaperContext : ApplicationContext
         catch { settings = new(); }
         settings.Fps = Math.Clamp(settings.Fps, 1, 120);
         settings.Strength = Math.Clamp(settings.Strength, 0, 3);
+        settings.ParallaxStrength = Math.Clamp(settings.ParallaxStrength, 0, 3);
         var menu = new ContextMenuStrip();
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
@@ -97,6 +104,19 @@ internal sealed class WallpaperContext : ApplicationContext
         media.Changed += OnMediaChanged;
         media.SessionsChanged += OnSessionsChanged;
         _ = media.StartAsync(settings.MediaSourceId);
+        forms[0].BeginInvoke(ShowWelcomeIfNeeded);
+    }
+
+    private void ShowWelcomeIfNeeded()
+    {
+        if (settings.HasCompletedWelcome) return;
+        using var welcome = new WelcomeForm(settings);
+        if (welcome.ShowDialog() == DialogResult.OK)
+        {
+            settings.HasCompletedWelcome = true;
+            Save();
+            foreach (var form in forms) form.Invalidate();
+        }
     }
 
     private void OnSessionsChanged(object? sender, MediaSessionsChangedEventArgs e)
@@ -319,6 +339,12 @@ internal sealed class WallpaperForm : Form
         g.SmoothingMode = SmoothingMode.AntiAlias;
         float cx = Width / 2f, cy = Height / 2f;
         float unit = Math.Min(Width, Height);
+        if (settings.EnableParallax)
+        {
+            var pointer = PointToClient(Cursor.Position);
+            cx += (pointer.X - Width / 2f) / Math.Max(1, Width) * unit * .08f * settings.ParallaxStrength;
+            cy += (pointer.Y - Height / 2f) / Math.Max(1, Height) * unit * .08f * settings.ParallaxStrength;
+        }
         float energy = audio.Level * settings.Strength;
         if (artwork is not null)
         {
@@ -347,13 +373,32 @@ internal sealed class WallpaperForm : Form
         }
         int bars = 64;
         var spectrum = audio.Bands;
-        float bandY = Height - Math.Max(30, Height * .08f);
-        float bandW = Width * .7f, x0 = (Width - bandW) / 2;
-        using var brush = new SolidBrush(Color.FromArgb(170, 53, 218, 255));
-        for (int i = 0; i < bars; i++)
+        if (settings.VisualizerMode is VisualizerMode.Bottom or VisualizerMode.Both)
         {
-            float h = 3 + spectrum[i] * settings.Strength * Math.Min(100, Height * .15f);
-            g.FillRectangle(brush, x0 + i * bandW / bars, bandY - h, bandW / bars * .55f, h);
+            float bandY = Height - Math.Max(30, Height * .08f);
+            float bandW = Width * .7f, x0 = (Width - bandW) / 2;
+            using var brush = new SolidBrush(Color.FromArgb(170, 53, 218, 255));
+            for (int i = 0; i < bars; i++)
+            {
+                float h = 3 + spectrum[i] * settings.Strength * Math.Min(100, Height * .15f);
+                g.FillRectangle(brush, x0 + i * bandW / bars, bandY - h, bandW / bars * .55f, h);
+            }
+        }
+        if (settings.VisualizerMode is VisualizerMode.Cover or VisualizerMode.Both)
+        {
+            float radius = unit * .34f;
+            using var pen = new Pen(Color.FromArgb(185, 190, 100, 255), Math.Max(2, unit * .004f));
+            for (int i = 0; i < bars; i++)
+            {
+                float angle = MathF.Tau * i / bars - MathF.PI / 2;
+                float h = 3 + spectrum[i] * settings.Strength * unit * .12f;
+                float x1 = cx + MathF.Cos(angle) * radius;
+                float y1 = cy + MathF.Sin(angle) * radius;
+                float x2 = cx + MathF.Cos(angle) * (radius + h);
+                float y2 = cy + MathF.Sin(angle) * (radius + h);
+                pen.Color = Color.FromArgb(185, 53 + (int)(spectrum[i] * 160), 130, 255);
+                g.DrawLine(pen, x1, y1, x2, y2);
+            }
         }
     }
     protected override void Dispose(bool disposing)
