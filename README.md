@@ -14,7 +14,7 @@ Descarga el artefacto `EQVisualizer-win-x64` o `EQVisualizer-win-x86` de la ejec
 - La ventana se integra mediante WorkerW, una técnica no contractual del Explorador. El programa se cierra si no consigue integrarse. Recuperación tras reinicio del Explorador, bloqueo de sesión, suspensión y detección robusta de pantalla completa siguen pendientes. La pausa actual solo detecta una ventana frontal que cubre casi todo un monitor.
 - Se crea una ventana por monitor, usando su resolución. Falta validar posición y escala con distintas configuraciones HiDPI. No hay ajuste de contraste para los iconos: su ubicación real no se detecta. No se afirma legibilidad adaptativa.
 - No hay hotkeys globales ni notificaciones de estado, salvo errores de captura o integración. No se guarda historial musical ni hay telemetría.
-- Objetivo de compatibilidad: Windows 10 x86/x64 y Windows 11 x64. La API WASAPI y WinForms existen en esas plataformas; la compatibilidad completa del prototipo no se ha comprobado. Windows 10 1607 es una referencia mínima para el futuro aislamiento por proceso mediante process loopback, cuya API se introdujo en Windows 10 2004 (build 19041); versiones anteriores necesitarían una ruta limitada de captura general. Aún no se implementa dicho aislamiento.
+- Objetivo de compatibilidad: Windows 10 x86/x64 y Windows 11 x64. La API WASAPI y WinForms existen en esas plataformas; la compatibilidad completa del prototipo no se ha comprobado. La versión mínima exacta para un futuro aislamiento por proceso se determinará al elegir y validar la API correspondiente. En Windows 10, esta versión solo ofrece captura general del dispositivo.
 
 ## Arquitectura prevista
 
