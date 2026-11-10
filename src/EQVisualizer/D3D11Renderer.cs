@@ -59,7 +59,7 @@ internal sealed class D3D11Renderer : IDisposable
             new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 16, 0),
             new InputElementDescription("TEXINDEX", 0, Format.R32_Float, 32, 0)
         ], vertexBytecode.Span);
-        vertexBuffer = graphics.Device.CreateBuffer((uint)(4096 * Marshal.SizeOf<GpuVertex>(), BindFlags.VertexBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write);
+        vertexBuffer = graphics.Device.CreateBuffer((uint)(4096 * Marshal.SizeOf<GpuVertex>()), BindFlags.VertexBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write);
         CreateTarget();
     }
 
