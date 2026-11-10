@@ -102,12 +102,12 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnSessionsChanged(object? sender, MediaSessionsChangedEventArgs e)
     {
         sourceMenu.DropDownItems.Clear();
-        var automatic = sourceMenu.DropDownItems.Add("Automático", null, async (_, _) => await SelectSourceAsync(null));
+        var automatic = (ToolStripMenuItem)sourceMenu.DropDownItems.Add("Automático", null, async (_, _) => await SelectSourceAsync(null));
         automatic.Checked = settings.MediaSourceId is null;
         foreach (var choice in e.Sessions)
         {
             string id = choice.Id;
-            var item = sourceMenu.DropDownItems.Add(choice.Label, null, async (_, _) => await SelectSourceAsync(id));
+            var item = (ToolStripMenuItem)sourceMenu.DropDownItems.Add(choice.Label, null, async (_, _) => await SelectSourceAsync(id));
             item.Checked = string.Equals(settings.MediaSourceId, id, StringComparison.Ordinal);
         }
         sourceMenu.Enabled = e.Sessions.Count > 0;
