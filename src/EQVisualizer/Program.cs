@@ -301,6 +301,8 @@ internal sealed class WallpaperForm : Form
     private bool systemPaused;
     private Image? artwork;
     private bool isPlaying;
+    private Color primaryColor = Color.FromArgb(53, 218, 255);
+    private Color secondaryColor = Color.FromArgb(177, 65, 255);
     public bool Attached { get; private set; }
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
@@ -328,13 +330,17 @@ internal sealed class WallpaperForm : Form
     {
         artwork?.Dispose();
         artwork = image is null ? null : new Bitmap(image);
+        if (artwork is not null) (primaryColor, secondaryColor) = ExtractPalette(artwork);
+        else { primaryColor = Color.FromArgb(53, 218, 255); secondaryColor = Color.FromArgb(177, 65, 255); }
         isPlaying = playing;
         Invalidate();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.Clear(Color.FromArgb(9, 12, 24));
+        using (var background = new LinearGradientBrush(ClientRectangle,
+            Darken(primaryColor, 0.12f), Darken(secondaryColor, 0.10f), 20f))
+            g.FillRectangle(background, ClientRectangle);
         if (!settings.Enabled) return;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         float cx = Width / 2f, cy = Height / 2f;
@@ -377,7 +383,7 @@ internal sealed class WallpaperForm : Form
         {
             float bandY = Height - Math.Max(30, Height * .08f);
             float bandW = Width * .7f, x0 = (Width - bandW) / 2;
-            using var brush = new SolidBrush(Color.FromArgb(170, 53, 218, 255));
+            using var brush = new SolidBrush(Color.FromArgb(190, primaryColor));
             for (int i = 0; i < bars; i++)
             {
                 float h = 3 + spectrum[i] * settings.Strength * Math.Min(100, Height * .15f);
@@ -396,11 +402,33 @@ internal sealed class WallpaperForm : Form
                 float y1 = cy + MathF.Sin(angle) * radius;
                 float x2 = cx + MathF.Cos(angle) * (radius + h);
                 float y2 = cy + MathF.Sin(angle) * (radius + h);
-                pen.Color = Color.FromArgb(185, 53 + (int)(spectrum[i] * 160), 130, 255);
+                float mix = i / (float)Math.Max(1, bars - 1);
+                pen.Color = Color.FromArgb(190,
+                    (int)(primaryColor.R + (secondaryColor.R - primaryColor.R) * mix),
+                    (int)(primaryColor.G + (secondaryColor.G - primaryColor.G) * mix),
+                    (int)(primaryColor.B + (secondaryColor.B - primaryColor.B) * mix));
                 g.DrawLine(pen, x1, y1, x2, y2);
             }
         }
     }
+    private static (Color Primary, Color Secondary) ExtractPalette(Image image)
+    {
+        using var sample = new Bitmap(image, new Size(16, 16));
+        long r1 = 0, g1 = 0, b1 = 0, r2 = 0, g2 = 0, b2 = 0;
+        for (int y = 0; y < sample.Height; y++)
+        for (int x = 0; x < sample.Width; x++)
+        {
+            var pixel = sample.GetPixel(x, y);
+            if ((x + y) % 2 == 0) { r1 += pixel.R; g1 += pixel.G; b1 += pixel.B; }
+            else { r2 += pixel.R; g2 += pixel.G; b2 += pixel.B; }
+        }
+        return (Color.FromArgb((int)(r1 / 128), (int)(g1 / 128), (int)(b1 / 128)),
+            Color.FromArgb((int)(r2 / 128), (int)(g2 / 128), (int)(b2 / 128)));
+    }
+
+    private static Color Darken(Color color, float amount) =>
+        Color.FromArgb(255, (int)(color.R * amount), (int)(color.G * amount), (int)(color.B * amount));
+
     protected override void Dispose(bool disposing)
     {
         if (disposing) { timer.Dispose(); artwork?.Dispose(); }
