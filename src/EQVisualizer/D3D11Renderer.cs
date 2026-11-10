@@ -3,8 +3,19 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
+using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace EQVisualizer;
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuVertex
+{
+    public Vector2 Position;
+    public Vector2 Uv;
+    public Vector4 Color;
+    public float Textured;
+}
 
 internal sealed class D3D11Renderer : IDisposable
 {
@@ -16,6 +27,7 @@ internal sealed class D3D11Renderer : IDisposable
     private readonly ID3D11VertexShader vertexShader;
     private readonly ID3D11PixelShader pixelShader;
     private readonly ID3D11InputLayout inputLayout;
+    private readonly ID3D11Buffer vertexBuffer;
 
     public D3D11Renderer(IntPtr hwnd, int width, int height)
     {
@@ -47,6 +59,7 @@ internal sealed class D3D11Renderer : IDisposable
             new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 16, 0),
             new InputElementDescription("TEXINDEX", 0, Format.R32_Float, 32, 0)
         ], vertexBytecode.Span);
+        vertexBuffer = graphics.Device.CreateBuffer(4096 * Marshal.SizeOf<GpuVertex>(), BindFlags.VertexBuffer, ResourceUsage.Dynamic, CpuAccessFlags.Write);
         CreateTarget();
     }
 
@@ -69,6 +82,17 @@ internal sealed class D3D11Renderer : IDisposable
         swapChain.Present(1, PresentFlags.None);
     }
 
+    public unsafe void Draw(ReadOnlySpan<GpuVertex> vertices)
+    {
+        if (vertices.Length == 0 || vertices.Length > 4096 || target is null) return;
+        var mapped = graphics.Context.Map(vertexBuffer, 0, MapMode.WriteDiscard);
+        vertices.CopyTo(mapped.AsSpan<GpuVertex>(vertices.Length));
+        graphics.Context.Unmap(vertexBuffer, 0);
+        graphics.Context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        graphics.Context.IASetVertexBuffer(0, vertexBuffer, (uint)Marshal.SizeOf<GpuVertex>());
+        graphics.Context.Draw((uint)vertices.Length, 0);
+    }
+
     private void CreateTarget()
     {
         backBuffer = swapChain.GetBuffer<ID3D11Texture2D>(0);
@@ -86,6 +110,7 @@ internal sealed class D3D11Renderer : IDisposable
         ReleaseTarget();
         graphics.Context.ClearState();
         graphics.Context.Flush();
+        vertexBuffer.Dispose();
         inputLayout.Dispose();
         pixelShader.Dispose();
         vertexShader.Dispose();
