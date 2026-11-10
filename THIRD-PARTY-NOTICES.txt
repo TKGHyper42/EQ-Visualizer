@@ -1,0 +1,55 @@
+EQ Visualizer preserves its MIT license in LICENSE.
+Application code, scene geometry and HLSL shaders are original. No code, images,
+shaders or internal resources from other wallpaper applications are included.
+Music and artwork supplied at runtime by Windows are not redistributed assets.
+
+Pinned dependencies (managed assemblies support x64 and x86):
+
+NAudio.Wasapi / NAudio.Core 2.2.1 — MIT
+Copyright (c) Mark Heath and contributors (package metadata: Mark Heath 2023).
+https://github.com/naudio/NAudio
+Only capture and analysis APIs are used. No playback or recording-to-file APIs.
+
+Vortice.Direct3D11 / Vortice.D3DCompiler / Vortice.DXGI /
+Vortice.DirectX 3.8.3; Vortice.Mathematics 2.1.0 — MIT
+Copyright (c) Amer Koleci and Contributors.
+https://github.com/amerkoleci/Vortice.Windows
+https://github.com/amerkoleci/Vortice.Mathematics
+Direct3D/DXGI/D3DCompiler use Windows system components.
+
+SharpGen.Runtime / SharpGen.Runtime.COM 2.4.2-beta — MIT
+Copyright (c) 2010-2017 Alexandre Mutel, 2017-2023 Jeremy Koritzinsky,
+2023-2024 Amer Koleci. These are pinned transitive requirements of Vortice.
+https://github.com/SharpGenTools/SharpGenTools
+
+The license expressions and notices above were reviewed from the pinned NuGet
+packages. NAudio 2.2.1 is an older stable release: compatibility is checked by
+compilation and tests rather than assumed from package age. Vortice is the
+maintained .NET binding used for Direct3D; the transitive SharpGen beta version
+is a dependency risk retained from its published dependency graph.
+
+MIT license for the components above:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+The self-contained distribution also includes the Microsoft .NET 10 runtime,
+Windows Desktop runtime, and Windows SDK .NET runtime components. Microsoft
+licensing and third-party notices supplied with the restored packages are
+included under licenses/ in the distribution. These notices remain applicable
+to those components and do not change EQ Visualizer's own license.

@@ -2,13 +2,21 @@ name: Windows build
 on:
   push:
     branches: [codex/bootstrap-eq-visualizer]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         arch: [win-x64, win-x86]
     steps:
@@ -16,10 +24,40 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Publish
+      - name: Check spectrum and scene geometry
+        run: dotnet run --project tests/EQVisualizer.CoreChecks -c Release
+      - name: Publish executable
         run: dotnet publish src/EQVisualizer/EQVisualizer.csproj -c Release -r ${{ matrix.arch }} --self-contained true -p:PublishSingleFile=true -o out/${{ matrix.arch }}
+      - name: Exercise published renderer
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "out/${{ matrix.arch }}/EQVisualizer.exe"
+          $result = Start-Process -FilePath $exe -ArgumentList "--smoke-test", "TestResults/${{ matrix.arch }}" -Wait -PassThru
+          Get-Content "TestResults/${{ matrix.arch }}/smoke-result.txt"
+          if ($result.ExitCode -ne 0) { throw "Renderer smoke test failed: $($result.ExitCode)" }
+      - name: Include licenses and user guide
+        shell: pwsh
+        run: |
+          $destination = "out/${{ matrix.arch }}"
+          Copy-Item LICENSE, README.md, COMPATIBILITY.md, THIRD-PARTY-NOTICES.txt $destination
+          $licenseDirectory = New-Item -ItemType Directory -Force "$destination/licenses"
+          $packages = Join-Path $env:USERPROFILE ".nuget/packages"
+          Get-ChildItem $packages -Recurse -File -Include "*LICENSE*","*NOTICE*" | ForEach-Object {
+            $relative = $_.FullName.Substring($packages.Length + 1)
+            $target = Join-Path $licenseDirectory.FullName $relative
+            New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+            Copy-Item $_.FullName $target
+          }
+          Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256 | Format-List | Out-String | Set-Content "$destination/SHA256.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: EQVisualizer-${{ matrix.arch }}
-          path: out/${{ matrix.arch }}/EQVisualizer.exe
+          path: out/${{ matrix.arch }}/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: checks-${{ matrix.arch }}
+          path: TestResults/${{ matrix.arch }}/
+          if-no-files-found: warn
+

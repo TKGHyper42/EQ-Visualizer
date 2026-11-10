@@ -7,11 +7,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
-    <Content Include="Assets\Visualizer.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Assets\Visualizer.hlsl" />
   </ItemGroup>
 </Project>
+

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/EQVisualizer/AudioAnalyzer.cs" Link="AudioAnalyzer.cs" />
+    <Compile Include="../../src/EQVisualizer/VisualScene.cs" Link="VisualScene.cs" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+  </ItemGroup>
+</Project>
