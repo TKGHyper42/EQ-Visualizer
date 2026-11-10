@@ -23,6 +23,7 @@ internal sealed class Settings
     public float Strength { get; set; } = 1f;
     public bool Enabled { get; set; } = true;
     public string? AudioDeviceId { get; set; }
+    public string? MediaSourceId { get; set; }
     public Keys HotkeyKey { get; set; } = Keys.V;
     public bool HotkeyControl { get; set; } = true;
     public bool HotkeyAlt { get; set; } = true;
@@ -37,6 +38,7 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly MediaSessionMonitor media = new();
     private readonly Settings settings;
     private readonly HotkeyWindow hotkey = new();
+    private readonly ToolStripMenuItem sourceMenu = new("Reproductor");
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 2000 };
     private bool systemPaused;
     private readonly string settingsPath = Path.Combine(
@@ -57,6 +59,7 @@ internal sealed class WallpaperContext : ApplicationContext
         menu.Items.Add("60 FPS", null, (_, _) => SetFps(60));
         menu.Items.Add("Menos intensidad", null, (_, _) => SetStrength(settings.Strength - .25f));
         menu.Items.Add("Más intensidad", null, (_, _) => SetStrength(settings.Strength + .25f));
+        menu.Items.Add(sourceMenu);
         var deviceMenu = new ToolStripMenuItem("Salida de audio");
         deviceMenu.DropDownItems.Add("Predeterminada", null, (_, _) => SetDevice(null));
         try
@@ -92,7 +95,29 @@ internal sealed class WallpaperContext : ApplicationContext
         }
         if (forms.Count == 0 || forms.Any(f => !f.Attached)) ExitThread();
         media.Changed += OnMediaChanged;
-        _ = media.StartAsync();
+        media.SessionsChanged += OnSessionsChanged;
+        _ = media.StartAsync(settings.MediaSourceId);
+    }
+
+    private void OnSessionsChanged(object? sender, MediaSessionsChangedEventArgs e)
+    {
+        sourceMenu.DropDownItems.Clear();
+        var automatic = sourceMenu.DropDownItems.Add("Automático", null, async (_, _) => await SelectSourceAsync(null));
+        automatic.Checked = settings.MediaSourceId is null;
+        foreach (var choice in e.Sessions)
+        {
+            string id = choice.Id;
+            var item = sourceMenu.DropDownItems.Add(choice.Label, null, async (_, _) => await SelectSourceAsync(id));
+            item.Checked = string.Equals(settings.MediaSourceId, id, StringComparison.Ordinal);
+        }
+        sourceMenu.Enabled = e.Sessions.Count > 0;
+    }
+
+    private async Task SelectSourceAsync(string? id)
+    {
+        settings.MediaSourceId = id;
+        Save();
+        await media.SelectSourceAsync(id);
     }
 
     private void OnMediaChanged(object? sender, NowPlayingChangedEventArgs e)
