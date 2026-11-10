@@ -14,6 +14,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        Application.SetColorMode(SystemColorMode.Dark);
         if (args.Length == 2 && args[0] == "--smoke-test") return SmokeTest.Run(args[1]);
         using var instance = new Mutex(true, "Local\\EQVisualizer.MusicWallpaper", out bool first);
         if (!first) return 0;
