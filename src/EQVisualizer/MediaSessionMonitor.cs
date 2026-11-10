@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using Windows.Foundation;
 using Windows.Media.Control;
 using Windows.Storage.Streams;
@@ -174,8 +176,37 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         reader.ReadBytes(bytes);
         using var memory = new MemoryStream(bytes);
         using var decoded = Image.FromStream(memory);
-        if (decoded.Width > 8192 || decoded.Height > 8192) return null;
-        return new Bitmap(decoded);
+        return NormalizeArtwork(decoded);
+    }
+
+    // The media API can deliver huge compressed images. Keep only a small,
+    // aspect-ratio-preserving bitmap after decoding; never retain full resolution.
+    private static Bitmap? NormalizeArtwork(Image decoded)
+    {
+        const int maxSourceSide = 8192;
+        const long maxSourcePixels = 16_777_216;
+        const int maxOutputSide = 1024;
+        if (decoded.Width < 1 || decoded.Height < 1 ||
+            decoded.Width > maxSourceSide || decoded.Height > maxSourceSide ||
+            (long)decoded.Width * decoded.Height > maxSourcePixels)
+            return null;
+
+        float scale = Math.Min(1f, maxOutputSide / (float)Math.Max(decoded.Width, decoded.Height));
+        int width = Math.Max(1, (int)MathF.Round(decoded.Width * scale));
+        int height = Math.Max(1, (int)MathF.Round(decoded.Height * scale));
+        var output = new Bitmap(width, height, PixelFormat.Format32bppPArgb);
+        try
+        {
+            using var graphics = Graphics.FromImage(output);
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(decoded, 0, 0, width, height);
+            return output;
+        }
+        catch
+        {
+            output.Dispose();
+            throw;
+        }
     }
 
     private void Publish(string title, string artist, Image? artwork, bool playing, bool hasSession)
