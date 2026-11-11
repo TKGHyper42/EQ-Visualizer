@@ -10,9 +10,6 @@ internal sealed class WelcomeForm : ModernForm
     public WelcomeForm(Settings settings) : base("EQ Visualizer / Bienvenida")
     {
         this.settings = settings; ClientSize = new Size(800, 530); MinimumSize = MaximumSize = Size;
-        cover.Checked = settings.VisualizerMode == VisualizerMode.Circle;
-        bottom.Checked = settings.VisualizerMode == VisualizerMode.Bottom;
-        both.Checked = settings.VisualizerMode == VisualizerMode.Both;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(34, 24, 34, 26), ColumnCount = 1, RowCount = 5 };
         layout.RowStyles.Add(new(SizeType.Absolute, 36)); layout.RowStyles.Add(new(SizeType.Absolute, 65));
         layout.RowStyles.Add(new(SizeType.Absolute, 48)); layout.RowStyles.Add(new(SizeType.Percent, 100)); layout.RowStyles.Add(new(SizeType.Absolute, 64));
@@ -20,7 +17,13 @@ internal sealed class WelcomeForm : ModernForm
         layout.Controls.Add(new Label { Text = "Tu música merece su espacio.", Font = Ui.Font(26, FontStyle.Bold), ForeColor = Ui.Text, AutoSize = true }, 0, 1);
         layout.Controls.Add(new Label { Text = "Elige cómo acompañará cada canción a tu escritorio.", Font = Ui.Font(11), ForeColor = Ui.Muted, AutoSize = true }, 0, 2);
         var choices = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        choices.Controls.AddRange([cover, bottom, both]); layout.Controls.Add(choices, 0, 3);
+        choices.Controls.AddRange([cover, bottom, both]);
+        // Radio buttons must share the same parent before selecting one. Doing
+        // this while unparented can leave more than one choice checked.
+        cover.Checked = settings.VisualizerMode == VisualizerMode.Circle;
+        bottom.Checked = settings.VisualizerMode == VisualizerMode.Bottom;
+        both.Checked = settings.VisualizerMode == VisualizerMode.Both;
+        layout.Controls.Add(choices, 0, 3);
         var footer = new Panel { Dock = DockStyle.Fill };
         var start = new UiButton { Text = "Empezar  →", Primary = true, Dock = DockStyle.Right, Width = 155, DialogResult = DialogResult.OK };
         footer.Controls.Add(new Label { Text = "Puedes cambiarlo cuando quieras en Ajustes.", ForeColor = Ui.Muted, Font = Ui.Font(9), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft });
