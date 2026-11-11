@@ -16,6 +16,10 @@ internal sealed class NowPlayingChangedEventArgs(string title, string artist, Im
 }
 
 internal sealed record MediaSessionChoice(string Id, string Label);
+internal sealed class PlaybackStateChangedEventArgs(bool playing) : EventArgs
+{
+    public bool IsPlaying { get; } = playing;
+}
 
 internal sealed class MediaSessionsChangedEventArgs(IReadOnlyList<MediaSessionChoice> sessions) : EventArgs
 {
@@ -31,6 +35,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
     private GlobalSystemMediaTransportControlsSession? session;
     private string? preferredSourceId;
     public event EventHandler<NowPlayingChangedEventArgs>? Changed;
+    public event EventHandler<PlaybackStateChangedEventArgs>? PlaybackChanged;
     public event EventHandler<MediaSessionsChangedEventArgs>? SessionsChanged;
 
     public async Task StartAsync(string? sourceId)
@@ -83,8 +88,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             session = manager is null ? null :
                 (preferredSourceId is null
                     ? manager.GetCurrentSession()
-                    : manager.GetSessions().FirstOrDefault(item =>
-                        string.Equals(item.SourceAppUserModelId, preferredSourceId, StringComparison.Ordinal)));
+                    : FindPreferredSession(manager, preferredSourceId));
             if (preferredSourceId is null && manager is not null)
             {
                 bool currentIsMusic = false;
@@ -115,14 +119,35 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         finally { selectionGate.Release(); }
     }
 
+    private static GlobalSystemMediaTransportControlsSession? FindPreferredSession(
+        GlobalSystemMediaTransportControlsSessionManager manager, string sourceId)
+    {
+        var sessions = manager.GetSessions();
+        return sessions.FirstOrDefault(item => string.Equals(item.SourceAppUserModelId, sourceId, StringComparison.Ordinal))
+            ?? sessions.FirstOrDefault(item => MediaSourceIdentity.Matches(item.SourceAppUserModelId, sourceId));
+    }
+
     private async void OnMediaPropertiesChanged(
         GlobalSystemMediaTransportControlsSession sender,
         MediaPropertiesChangedEventArgs args)
     { try { await PublishSessionAsync(); await PublishSessionsAsync(); } catch { } }
 
-    private async void OnPlaybackInfoChanged(
+    private void OnPlaybackInfoChanged(
         GlobalSystemMediaTransportControlsSession sender,
-        PlaybackInfoChangedEventArgs args) => await PublishSessionAsync();
+        PlaybackInfoChangedEventArgs args)
+    {
+        if (disposed || !ReferenceEquals(sender, session)) return;
+        context.Post(_ =>
+        {
+            if (disposed || !ReferenceEquals(sender, session)) return;
+            try
+            {
+                bool playing = sender.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                PlaybackChanged?.Invoke(this, new PlaybackStateChangedEventArgs(playing));
+            }
+            catch { }
+        }, null);
+    }
 
     private async Task PublishSessionsAsync()
     {
@@ -156,7 +181,19 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             var properties = await current.TryGetMediaPropertiesAsync();
             if (disposed || version != generation || !ReferenceEquals(current, session)) return;
             if (!IsMusic(properties)) { Publish("", "", null, false, false); return; }
-            Image? image = properties.Thumbnail is null ? null : await ReadArtworkAsync(properties.Thumbnail);
+            Image? image = null;
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                if (properties.Thumbnail is not null)
+                {
+                    try { image = await ReadArtworkAsync(properties.Thumbnail); } catch { }
+                    if (image is not null) break;
+                }
+                if (attempt == 3) break;
+                await Task.Delay(125);
+                if (disposed || version != generation || !ReferenceEquals(current, session)) return;
+                properties = await current.TryGetMediaPropertiesAsync();
+            }
             bool playing = current.GetPlaybackInfo().PlaybackStatus ==
                 GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
             if (disposed || version != generation || !ReferenceEquals(current, session)) { image?.Dispose(); return; }
@@ -174,9 +211,12 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         await reader.LoadAsync(length);
         byte[] bytes = new byte[length];
         reader.ReadBytes(bytes);
-        using var memory = new MemoryStream(bytes);
-        using var decoded = Image.FromStream(memory);
-        return NormalizeArtwork(decoded);
+        return await Task.Run(() =>
+        {
+            using var memory = new MemoryStream(bytes);
+            using var decoded = Image.FromStream(memory);
+            return NormalizeArtwork(decoded);
+        });
     }
 
     // The media API can deliver huge compressed images. Keep only a small,
@@ -239,4 +279,3 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         }
     }
 }
-

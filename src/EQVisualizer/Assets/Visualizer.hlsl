@@ -31,7 +31,10 @@ PixelInput VSMain(VertexInput input)
 
 float4 PSMain(PixelInput input) : SV_TARGET
 {
-    float4 source = input.textured > 2.5f
+    if (input.textured > 3.5f && dot(input.uv - 0.5f, input.uv - 0.5f) > 0.25f) discard;
+    float4 source = input.textured > 4.5f ? float4(1, 1, 1, 1)
+        : input.textured > 3.5f ? coverTexture.Sample(linearSampler, input.uv)
+        : input.textured > 2.5f
         ? backgroundTexture.Sample(linearSampler,input.uv)
         : input.textured > 1.5f
         ? captionTexture.Sample(linearSampler, input.uv)
@@ -39,4 +42,3 @@ float4 PSMain(PixelInput input) : SV_TARGET
         : float4(1.0f, 1.0f, 1.0f, 1.0f);
     return source * input.color;
 }
-

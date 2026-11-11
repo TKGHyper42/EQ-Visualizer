@@ -11,7 +11,7 @@ El ciclo de soporte del runtime también depende de la edición y mantenimiento 
 
 ## Elegir música y audio
 
-En la bandeja, **Reproductor** permite elegir una sesión musical que Windows exponga. Se aceptan sesiones declaradas como música o, si no declaran tipo, con artista. Algunas aplicaciones no publican estos datos y no aparecerán. Una sesión de vídeo no se presenta como música. Si no hay portada, EQ Visualizer deja visible el fondo anterior.
+En la bandeja, **Reproductor** permite elegir una sesión musical que Windows exponga. Se aceptan sesiones declaradas como música o, si no declaran tipo, con artista. Algunas aplicaciones no publican estos datos y no aparecerán. Si la sesión musical no proporciona una miniatura, se muestra «Sin portada» con el título y el artista disponibles.
 
 **Capturar sonido de** elige entre la mezcla completa y un proceso de audio concreto. En modo mezcla, **Salida de audio** elige el dispositivo: pueden reaccionar los efectos a sonidos de otras aplicaciones. En modo proceso, selecciona manualmente el PID de la aplicación de música; la salida elegida no interviene. **Reproductor** elige por separado título, artista y portada: cambiarlo no cambia automáticamente el PID de captura. Puedes desactivar el análisis en Ajustes → Audio. No se reproduce, registra en archivos ni transmite sonido; tampoco se guarda historial musical ni se incorpora telemetría.
 
@@ -29,24 +29,28 @@ El apartado **Interfaz** ofrece cinco temas oscuros y cuatro claros. Carbón es 
 
 En **Visualizador** elige **Solo círculo**, **Solo franja inferior** o **Círculo y franja**. También puedes cambiarlo directamente desde el menú de la bandeja. El círculo sigue a la portada; la franja mantiene su posición sobre la barra de tareas. La portada y el túnel son independientes del modo de barras elegido.
 
-Activa **Portada → Información de la canción** para mostrar título y artista bajo la portada. Los datos proceden de la sesión musical y permanecen solo en memoria; no se incluyen canciones, portadas o nombres reales como recursos de la aplicación. **Audio → Grosor de barras** permite ajustar el ancho del círculo y de la franja entre 50 % y 300 %. El valor inicial es 160 % para mejorar su visibilidad.
+En **Audio**, los deslizadores **Altura del círculo** y **Altura de la franja** ajustan por separado la longitud de las barras entre 50 % y 200 %. En **Movimiento**, el túnel opcional usa anillos en perspectiva con los colores de la portada. Viene desactivado en nuevas instalaciones.
+
+**Portada → Información de la canción** muestra el título y el artista bajo la portada y viene activado en nuevas instalaciones. Si está activado, el texto también forma parte de la imagen de fondo que genera EQ. **Audio → Grosor de barras** permite ajustar el ancho del círculo y de la franja entre 50 % y 300 %. El valor inicial es 160 %.
 
 Las barras usan un degradado con colores dominantes de la portada, realzados para mejorar el contraste y con contorno oscuro local. Las portadas monocromas mantienen una paleta neutra. **Movimiento → Desenfoque del fondo** ajusta el blur entre 0 % y 100 %; 0 % lo desactiva. Solo se desenfoca la copia de fondo, conservando la portada principal y el texto nítidos. El fondo se recalcula cuando cambia la portada o este ajuste, evitando un filtro de blur continuo por fotograma.
 
 - `Ctrl + Alt + V`: activar o desactivar el wallpaper.
 - `Ctrl + Alt + E`: alternar túnel y paralaje.
 - Ambos atajos y sus modificadores se pueden cambiar.
-- **Salir** cierra las ventanas del wallpaper y deja visible el fondo previo.
+- **Salir** cierra el wallpaper y restaura la imagen de fondo previa si Windows sigue usando la de EQ.
 
 Los ajustes se guardan en `%LOCALAPPDATA%/EQVisualizer/settings.json`, sin títulos, artistas, portadas ni muestras de audio. El programa no registra inicio automático ni requiere administrador.
 
 ## Fondo, iconos y pausas
 
-WorkerW permite dibujar detrás de los iconos; es una integración no documentada por Microsoft y puede cambiar con las versiones del Explorador. El programa comprueba la relación y reintenta al perderla. No cambia el archivo ni el ajuste del fondo de Windows. Si detecta otra ventana maximizada o fullscreen cubriendo un monitor, pausa esa pantalla. Al bloquear o suspender la sesión detiene la animación y libera la captura cuando no queda una pantalla activa. La portada queda estática al pausar la música.
+EQ aplica una imagen con la portada de la canción como fondo de Windows. La imagen se guarda como `music-wallpaper.png` junto a los ajustes y se sustituye cuando cambia la canción. La restauración recupera la imagen anterior. Las presentaciones de diapositivas y los fondos distintos por monitor requieren sus propios ajustes de Windows.
+
+WorkerW permite dibujar las barras detrás de los iconos. Es una integración no documentada por Microsoft y puede cambiar con las versiones del Explorador. El programa comprueba la relación y reintenta al perderla. Si otra ventana maximizada o fullscreen cubre un monitor, EQ pausa la animación de esa pantalla. Al bloquear o suspender la sesión detiene la animación y libera la captura cuando no queda una pantalla activa. La portada queda estática al pausar la música.
 
 El contraste adaptativo consulta mediante accesibilidad las posiciones de los iconos del Explorador aproximadamente cada dos segundos y aplica sombreado local según una estimación de luminosidad de la portada. No se usan bandas fijas. Puede existir retraso al arrastrar iconos, y algunos escritorios o configuraciones no exponen posiciones. **Estado** indica esa limitación; **Oscurecer imagen completa** es la alternativa explícita. No se garantiza contraste perfecto en todas las composiciones ni shells alternativos.
 
-El límite inicial es 45 FPS; no es una medición ni garantía. La escala interna parte de cada monitor, nunca de una resolución 4K fija. Direct3D 11 usa GPU si está disponible; WARP y GDI+ son alternativas que pueden consumir más CPU. Varios monitores usan recursos gráficos separados. Se puede reducir escala y capas para bajar el consumo.
+El límite inicial es 45 FPS. La escala interna parte de cada monitor. Direct3D 11 usa GPU si está disponible. Si RivaTuner detecta EQ por el uso de Direct3D, selecciona **Rendimiento → Motor gráfico → Usar GDI+ (compatibilidad)**. GDI+ dibuja en CPU y su rendimiento depende del tamaño del escritorio y el límite de FPS. **Estado** muestra el motor activo.
 
 ## Qué se comprueba
 

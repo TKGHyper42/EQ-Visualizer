@@ -1,11 +1,10 @@
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.Numerics;
 
 namespace EQVisualizer;
 
 internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverSize, float X, float Y,
-    float Margin, float Strength, float Sensitivity, float Thickness, int Layers, bool Tunnel,
+    float Margin, float Strength, float Sensitivity, float Thickness, float CircleBarHeight, float BottomBarHeight, int Layers, bool Tunnel,
     bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
     bool PreviewIdle, string? IdlePath, InterfaceTheme Theme, IdleClockStyle ClockStyle);
 
@@ -110,44 +109,15 @@ internal sealed class SettingsPreview : Control
             scene.Build(new SceneOptions(canvas.Width, canvas.Height, .3f, new(options.X, options.Y),
                 options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
                 options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,
-                primary, secondary, options.Thickness, options.TrackInfo), spectrum, shades);
+                primary, secondary, options.Thickness, options.TrackInfo, options.CircleBarHeight, options.BottomBarHeight), spectrum, shades);
         }
         DrawScene(g, canvas, selectedArtwork);
         g.ResetClip();
     }
 
     private void DrawScene(Graphics g, Rectangle canvas, Image selectedArtwork)
-    {
-        g.InterpolationMode = InterpolationMode.Bilinear;
-        PointF Pixel(Vector2 p) => new(canvas.X + (p.X + 1) * canvas.Width / 2, canvas.Y + (1 - p.Y) * canvas.Height / 2);
-        var vertices = scene.Vertices;
-        for (int i = 0; i + 5 < vertices.Length; i += 6)
-        {
-            var a = vertices[i]; var b = vertices[i + 1]; var c = vertices[i + 2]; var d = vertices[i + 5];
-            if (a.Textured > .5f)
-            {
-                Image? image = a.Textured > 2.5f ? backdrop : a.Textured > 1.5f ? options.PreviewIdle ? clockCaption : caption : selectedArtwork;
-                if (image is null) continue;
-                using var attr = new ImageAttributes();
-                attr.SetColorMatrix(new ColorMatrix { Matrix00 = a.Color.X, Matrix11 = a.Color.Y,
-                    Matrix22 = a.Color.Z, Matrix33 = a.Color.W, Matrix44 = 1 });
-                g.DrawImage(image, [Pixel(a.Position), Pixel(b.Position), Pixel(d.Position)],
-                    new RectangleF(0, 0, image.Width, image.Height), GraphicsUnit.Pixel, attr);
-            }
-            else
-            {
-                static Color Ink(Vector4 color)
-                {
-                    var v = Vector4.Clamp(color, Vector4.Zero, Vector4.One);
-                    return Color.FromArgb((int)(v.W * 255), (int)(v.X * 255), (int)(v.Y * 255), (int)(v.Z * 255));
-                }
-                var p1 = Pixel((a.Position + b.Position) / 2); var p2 = Pixel((c.Position + d.Position) / 2);
-                using Brush brush = a.Color == c.Color ? new SolidBrush(Ink(a.Color)) :
-                    new LinearGradientBrush(p1, p2, Ink(a.Color), Ink(c.Color));
-                g.FillPolygon(brush, [Pixel(a.Position), Pixel(b.Position), Pixel(c.Position), Pixel(d.Position)]);
-            }
-        }
-    }
+        => SoftwareSceneRenderer.Draw(g, canvas, scene.Vertices, selectedArtwork, backdrop,
+            options.PreviewIdle ? clockCaption : caption);
 
     private static Bitmap SampleArtwork()
     {

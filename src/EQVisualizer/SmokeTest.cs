@@ -57,13 +57,49 @@ internal static class SmokeTest
             renderer.SetArtwork(cover); renderer.Render(scene.Vertices);
             renderer.SetCaption(null); renderer.Render([]); renderer.SetCaption(info); renderer.Render(scene.Vertices);
             using var clearBackdrop = BackdropImage.Create(cover, 0); renderer.SetBackground(clearBackdrop); renderer.Render(scene.Vertices); renderer.SetBackground(backdrop);
-            Step("Capturing settings form");
-            using (var number = new UiNumber { Minimum = 0, Maximum = 10, Increment = .25m, DecimalPlaces = 0, Value = 2.5m })
+            using (var edge = new Bitmap(512, 512))
             {
-                if (number.Value != 2.5m) throw new InvalidOperationException("Numeric field rounded an untouched setting.");
-                var entry = number.Controls.OfType<TextBox>().Single(); entry.Text = "7";
-                if (number.Value != 7) throw new InvalidOperationException("Numeric field did not accept typed input.");
-                entry.Text = "999"; if (number.Value != 10) throw new InvalidOperationException("Numeric field exceeded its limit.");
+                using (var graphics = Graphics.FromImage(edge))
+                {
+                    graphics.Clear(Color.Black);
+                    graphics.FillRectangle(Brushes.White, 256, 0, 256, 512);
+                }
+                using var clear = BackdropImage.Create(edge, 0);
+                using var blurred = BackdropImage.Create(edge, 35);
+                if (clear.GetPixel(232, 256).R > 10 || blurred.GetPixel(232, 256).R < 35)
+                    throw new InvalidOperationException("Default blur did not visibly soften the background edge.");
+            }
+            var softwareOptions = new Settings { UseGdiRenderer = true, EnableTunnel = true };
+            using (var audio = new AudioLevel())
+            using (var wallpaper = new WallpaperForm(Screen.PrimaryScreen!, softwareOptions, audio))
+            {
+                wallpaper.SetNowPlaying(cover, false, "Demo track", "EQ Visualizer");
+                using var windowsImage = wallpaper.CreateWindowsWallpaper()
+                    ?? throw new InvalidOperationException("The Windows wallpaper image was not rendered.");
+                int x = (int)(windowsImage.Width * softwareOptions.PositionX);
+                int y = (int)(windowsImage.Height * softwareOptions.PositionY);
+                var center = windowsImage.GetPixel(x, y);
+                if (wallpaper.TopLevel || Math.Max(center.B, Math.Max(center.R, center.G)) < 128)
+                    throw new InvalidOperationException("The software wallpaper lost the cover or became a top-level window.");
+                windowsImage.Save(Path.Combine(directory, "windows-wallpaper.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            Step("Capturing settings form");
+            using (var slider = new UiSlider("Intensidad", 0, 10, .25m, 2.505m))
+            {
+                if (slider.Value != 2.505m) throw new InvalidOperationException("Slider rounded an untouched setting.");
+                var track = slider.Controls.OfType<TrackBar>().Single();
+                var entry = slider.Controls.OfType<TextBox>().Single();
+                int changes = 0;
+                slider.ValueChanged += (_, _) => changes++;
+                track.Value = 375;
+                if (slider.Value != 3.75m || changes != 1)
+                    throw new InvalidOperationException("Moving the slider did not update its value exactly once.");
+                entry.Text = "7";
+                if (slider.Value != 7 || track.Value != 700)
+                    throw new InvalidOperationException("Typing a value did not move the slider.");
+                entry.Text = "999";
+                if (slider.Value != 10 || track.Value != track.Maximum)
+                    throw new InvalidOperationException("The slider exceeded its limit.");
             }
             var values = new Settings();
             var processSettings = System.Text.Json.JsonSerializer.Serialize(new Settings { AudioProcessId = 1234, AudioProcessStartTicks = 5678 });
@@ -119,7 +155,7 @@ internal static class SmokeTest
             welcome.DrawToBitmap(welcomeImage, new Rectangle(Point.Empty, welcomeImage.Size));
             welcomeImage.Save(Path.Combine(directory, "welcome.png"), System.Drawing.Imaging.ImageFormat.Png);
             welcome.Close();
-            File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: embedded shaders, texture upload, draw, resize, artwork removal/reload. Renderer: " + (renderer.UsesSoftware ? "WARP" : "hardware") + ". Desktop integration and real audio not exercised.");
+            File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: Direct3D, software wallpaper, blur, and settings controls. Renderer: " + (renderer.UsesSoftware ? "WARP" : "hardware") + ". Desktop integration and real audio not exercised.");
             Step("Completed");
             return 0;
         }

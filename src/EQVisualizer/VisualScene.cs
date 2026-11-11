@@ -14,11 +14,15 @@ internal readonly record struct ShadeRegion(float X, float Y, float Width, float
 internal readonly record struct SceneOptions(float Width, float Height, float Phase,
     Vector2 Center, float CoverSize, float Intensity, float Sensitivity, bool Tunnel,
     bool Ring, bool Bottom, float BottomY, int Layers, Vector4 Primary, Vector4 Secondary,
-    float BarThickness = 1.6f, bool ShowTrackInfo = false);
+    float BarThickness = 1.6f, bool ShowTrackInfo = false, float CircleBarHeight = 1, float BottomBarHeight = 1);
 
 // UVs refer only to the artwork supplied by the current Windows music session.
 internal sealed class VisualScene
 {
+    private static readonly Vector2[] tunnelOutline = Enumerable.Range(0, 32)
+        .Select(index => MathF.Tau * index / 32)
+        .Select(angle => new Vector2(MathF.Cos(angle), MathF.Sin(angle)))
+        .ToArray();
     private readonly GpuVertex[] vertices = new GpuVertex[16384];
     private int count;
     private float width, height;
@@ -63,43 +67,39 @@ internal sealed class VisualScene
         count = 0; width = Math.Max(1, o.Width); height = Math.Max(1, o.Height);
         float unit = Math.Min(width, height), cx = o.Center.X * width, cy = o.Center.Y * height;
         float background = Math.Max(width, height) * 1.12f;
-        Quad(width / 2, height / 2, background, background, new(.2f, .2f, .2f, 1), true);
+        Quad(width / 2, height / 2, background, background, new(.38f, .38f, .38f, 1), true);
         for (int i = 0; i < count; i++) vertices[i].Textured = 3;
-        if (o.Tunnel)
-        {
-            int layers = Math.Clamp(o.Layers, 3, 12);
-            for (int i = layers; i > 0; i--)
-            {
-                float d = (i + o.Phase % 1) / layers;
-                float size = unit * o.CoverSize * (1 + d * 1.7f);
-                float drift = MathF.Sin(o.Phase * 2 + d * 4) * unit * .04f * o.Intensity;
-                Quad(cx + drift, cy, size, size, new(1, 1, 1, .07f + (1 - d) * .1f), true);
-            }
-        }
         float cover = unit * o.CoverSize;
+        if (o.Tunnel) DrawTunnel(o, new(cx, cy), cover, unit);
+        int shadowStart = count;
         Quad(cx, cy + 5, cover + 14, cover + 14, new(0, 0, 0, .5f), false);
+        if (o.Ring) for (int i = shadowStart; i < count; i++) vertices[i].Textured = 5;
+        int artworkStart = count;
         Quad(cx, cy, cover, cover, Vector4.One, true);
+        if (o.Ring) for (int i = artworkStart; i < count; i++) vertices[i].Textured = 4;
+        float intensity = Math.Clamp(o.Intensity, 0, 3);
+        float barScale = intensity / (1 + intensity) * (4f / 3);
         for (int i = 0; i < spectrum.Length; i++)
         {
             float signal = Math.Clamp(spectrum[i] * o.Sensitivity, 0, 1);
-            var color = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1)); color.W = .9f;
-            var tip = Vector4.Lerp(o.Secondary, new Vector4(1, 1, 1, 1), .22f); tip.W = .98f;
+            var color = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1)); color.W = .7f;
+            var tip = Vector4.Lerp(color, o.Secondary, .65f); tip.W = .85f;
             if (o.Bottom)
             {
-                float bw = width * .72f, h = 2 + signal * unit * .16f * o.Intensity;
-                float x = width * .14f + (i + .5f) * bw / spectrum.Length, y = height * o.BottomY - h / 2, w = bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f);
-                Quad(x, y, w + 2, h + 2, new(0, 0, 0, .7f), false);
+                float bw = width * .52f, h = 1 + signal * unit * .038f * barScale * o.BottomBarHeight;
+                float x = width * .24f + (i + .5f) * bw / spectrum.Length, y = height * o.BottomY - h / 2, w = bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f);
+                Quad(x, y, w + 1, h + 1, new(0, 0, 0, .25f), false);
                 int first = count; Quad(x, y, w, h, color, false);
                 vertices[first].Color = tip; vertices[first + 1].Color = tip; vertices[first + 3].Color = tip;
             }
             if (o.Ring)
             {
-                float angle = MathF.Tau * i / Math.Max(1, spectrum.Length) - MathF.PI / 2, radius = cover * .76f;
+                float angle = MathF.Tau * i / Math.Max(1, spectrum.Length) - MathF.PI / 2, radius = cover * .5f + 5;
                 var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
                 var start = new Vector2(cx, cy) + direction * radius;
-                var end = start + direction * (2 + signal * unit * .12f * o.Intensity);
+                var end = start + direction * (1 + signal * unit * .022f * barScale * o.CircleBarHeight);
                 float thickness = Math.Max(2, unit * .0035f) * o.BarThickness;
-                Line(start, end, thickness + 2, new(0, 0, 0, .7f));
+                Line(start, end, thickness + 1, new(0, 0, 0, .25f));
                 int first = count; Line(start, end, thickness, color);
                 vertices[first + 2].Color = tip; vertices[first + 4].Color = tip; vertices[first + 5].Color = tip;
             }
@@ -107,11 +107,43 @@ internal sealed class VisualScene
         if (o.ShowTrackInfo)
         {
             float w = unit * .55f, h = w / 8;
+            float ringClearance = o.Ring ? 6 + unit * .022f * barScale * o.CircleBarHeight : 0;
             int first = count;
-            Quad(cx, cy + cover / 2 + unit * .014f + h / 2, w, h, Vector4.One, true);
+            Quad(cx, cy + cover / 2 + ringClearance + unit * .014f + h / 2, w, h, Vector4.One, true);
             for (int i = first; i < count; i++) vertices[i].Textured = 2;
         }
         foreach (var r in shades) Quad(r.X + r.Width / 2, r.Y + r.Height / 2, r.Width, r.Height, new(0, 0, 0, r.Opacity), false);
+    }
+    private void DrawTunnel(SceneOptions options, Vector2 center, float cover, float unit)
+    {
+        int layers = Math.Clamp(options.Layers, 3, 12);
+        float offset = options.Phase - MathF.Floor(options.Phase);
+        float farRadius = cover / 2 + unit * .07f;
+        float nearRadius = new Vector2(Math.Max(center.X, width - center.X),
+            Math.Max(center.Y, height - center.Y)).Length();
+        float scale = Math.Max(.8f, unit / 768);
+        var rail = Vector4.Lerp(options.Primary, options.Secondary, .5f) with { W = .13f };
+        for (int index = 0; index < tunnelOutline.Length; index += 4)
+        {
+            var direction = tunnelOutline[index];
+            Line(center + direction * farRadius, center + direction * nearRadius, scale, rail);
+        }
+        for (int layer = 0; layer < layers; layer++)
+        {
+            float depth = (layer + offset) / layers;
+            // Rings spread apart as they approach the viewer.
+            float radius = farRadius * MathF.Pow(nearRadius / farRadius, depth);
+            float thickness = scale * (1 + depth * 2.5f);
+            float fade = Math.Min(1, Math.Min(layer + offset, layers - layer - offset));
+            var color = Vector4.Lerp(options.Primary, options.Secondary, depth) with { W = fade * (.18f + depth * .29f) };
+            for (int index = 0; index < tunnelOutline.Length; index++)
+            {
+                var a = tunnelOutline[index];
+                var b = tunnelOutline[(index + 1) % tunnelOutline.Length];
+                Add(center + a * radius, center + b * radius,
+                    center + b * (radius - thickness), center + a * (radius - thickness), color, false);
+            }
+        }
     }
     private GpuVertex Vertex(Vector2 p, Vector2 uv, Vector4 color, bool textured) => new()
     {

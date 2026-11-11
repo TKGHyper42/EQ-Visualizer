@@ -8,26 +8,40 @@ internal static class DesktopHost
     private const long WS_CHILD = 0x40000000;
     private const long WS_POPUP = 0x80000000L;
     private static IntPtr worker;
+    private static IntPtr iconLayer;
     public static bool Attach(IntPtr hwnd)
     {
         var form = Control.FromHandle(hwnd) as WallpaperForm;
         if (form is null) return false;
         var bounds = form.MonitorBounds;
-        if (worker != IntPtr.Zero && !IsWindow(worker)) worker = IntPtr.Zero;
+        if (worker != IntPtr.Zero && !IsWindow(worker)) { worker = IntPtr.Zero; iconLayer = IntPtr.Zero; }
         if (worker == IntPtr.Zero)
         {
             IntPtr progman = FindWindow("Progman", null);
             if (progman == IntPtr.Zero) return false;
-            SendMessageTimeout(progman, 0x052C, IntPtr.Zero, IntPtr.Zero, SMTO_NORMAL, 1000, out _);
-            EnumWindows((top, _) =>
+            // Windows 11 places the wallpaper WorkerW inside Progman, alongside
+            // SHELLDLL_DefView; it is no longer necessarily a top-level sibling.
+            IntPtr childWorker = FindWindowEx(progman, IntPtr.Zero, "WorkerW", null);
+            IntPtr desktopIcons = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
+            if (UsableWorker(childWorker) && desktopIcons != IntPtr.Zero)
             {
-                if (FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero)
+                // Windows replaces its own WorkerW when the static wallpaper
+                // changes. Use the stable parent and stay immediately below
+                // the desktop icons, so our surface survives those updates.
+                worker = progman;
+                iconLayer = desktopIcons;
+            }
+            if (worker == IntPtr.Zero)
+            {
+                SendMessageTimeout(progman, 0x052C, IntPtr.Zero, IntPtr.Zero, SMTO_NORMAL, 1000, out _);
+                EnumWindows((top, _) =>
                 {
+                    if (FindWindowEx(top, IntPtr.Zero, "SHELLDLL_DefView", null) == IntPtr.Zero) return true;
                     worker = FindWindowEx(IntPtr.Zero, top, "WorkerW", null);
-                    return false;
-                }
-                return true;
-            }, IntPtr.Zero);
+                    if (!UsableWorker(worker)) worker = IntPtr.Zero;
+                    return worker == IntPtr.Zero;
+                }, IntPtr.Zero);
+            }
         }
         if (worker == IntPtr.Zero) return false;
         if (IntPtr.Size == 4) SetWindowLong32(hwnd, GWL_STYLE, (int)((GetWindowLong32(hwnd, GWL_STYLE) | WS_CHILD) & ~WS_POPUP));
@@ -36,12 +50,23 @@ internal static class DesktopHost
         if (SetParent(hwnd, worker) == IntPtr.Zero && Marshal.GetLastPInvokeError() != 0) return false;
         var origin = new POINT { X = bounds.X, Y = bounds.Y };
         ScreenToClient(worker, ref origin);
-        SetWindowPos(hwnd, IntPtr.Zero, origin.X, origin.Y, bounds.Width, bounds.Height, 0x0014);
-        form.SetAttached();
-        return true;
+        return SetWindowPos(hwnd, iconLayer, origin.X, origin.Y, bounds.Width, bounds.Height, iconLayer == IntPtr.Zero ? 0x0014u : 0x0010u);
     }
+    private static bool UsableWorker(IntPtr window) => window != IntPtr.Zero && IsWindow(window) &&
+        GetWindowRect(window, out var rect) && rect.Right - rect.Left > 200 && rect.Bottom - rect.Top > 200 &&
+        FindWindowEx(window, IntPtr.Zero, "SHELLDLL_DefView", null) == IntPtr.Zero;
     public static bool IsAttached(IntPtr hwnd)
         => IsWindow(hwnd) && worker != IntPtr.Zero && IsWindow(worker) && GetParent(hwnd) == worker;
+    public static void KeepBelowIcons(IntPtr hwnd)
+    {
+        if (iconLayer == IntPtr.Zero || !IsAttached(hwnd)) return;
+        if (!IsWindow(iconLayer)) iconLayer = FindWindowEx(worker, IntPtr.Zero, "SHELLDLL_DefView", null);
+        if (iconLayer == IntPtr.Zero) return;
+        var background = FindWindowEx(worker, IntPtr.Zero, "WorkerW", null);
+        for (var next = GetWindow(iconLayer, 2); next != IntPtr.Zero && next != background; next = GetWindow(next, 2))
+            if (next == hwnd) return;
+        SetWindowPos(hwnd, iconLayer, 0, 0, 0, 0, 0x0013); // no move, size or activation
+    }
 
     public static bool IsCovered(Rectangle bounds)
     {
@@ -80,6 +105,7 @@ internal static class DesktopHost
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     private struct RECT { public int Left, Top, Right, Bottom; }

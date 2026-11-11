@@ -208,35 +208,99 @@ internal sealed class UiSelect : ComboBox
     }
 }
 
-internal sealed class UiNumber : UserControl
+internal sealed class UiSlider : UserControl
 {
     private readonly TextBox input = new() { BorderStyle = BorderStyle.None, BackColor = Ui.Elevated, ForeColor = Ui.Text, TextAlign = HorizontalAlignment.Center };
+    private readonly TrackBar track;
+    private readonly decimal minimum, maximum, scale;
+    private readonly int decimalPlaces;
     private decimal value;
     private string lastFormatted = "";
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public decimal Minimum { get; set; }
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public decimal Maximum { get; set; } = 100;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public decimal Increment { get; set; } = 1;
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public int DecimalPlaces { get; set; }
+    private bool updatingTrack;
     public event EventHandler? ValueChanged;
+
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public decimal Value { get { Commit(); return value; } set { var previous = this.value; this.value = Math.Clamp(value, Minimum, Maximum); RefreshText(); if (previous != this.value) ValueChanged?.Invoke(this, EventArgs.Empty); } }
-    public UiNumber()
+    public decimal Value
     {
-        Height = 36; MinimumSize = new Size(120, 36); BackColor = Ui.Elevated; Font = Ui.Font(); TabStop = false;
-        var minus = new UiButton { Text = "−", Dock = DockStyle.Left, Width = 36, AccessibleName = "Reducir" };
-        var plus = new UiButton { Text = "+", Dock = DockStyle.Right, Width = 36, AccessibleName = "Aumentar" };
-        minus.Click += (_, _) => Value = Value - Increment; plus.Click += (_, _) => Value = Value + Increment;
-        input.Validated += (_, _) => Commit();
-        input.KeyDown += (_, e) => { if (e.KeyCode == Keys.Up) { Value = Value + Increment; e.Handled = true; } if (e.KeyCode == Keys.Down) { Value = Value - Increment; e.Handled = true; } };
-        Controls.Add(input); Controls.Add(minus); Controls.Add(plus); RefreshText();
+        get { Commit(); return value; }
+        set
+        {
+            decimal previous = this.value;
+            this.value = Math.Clamp(value, minimum, maximum);
+            updatingTrack = true;
+            track.Value = (int)Math.Round(this.value * scale);
+            updatingTrack = false;
+            RefreshText();
+            if (previous != this.value) ValueChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
-    protected override void OnResize(EventArgs e) { base.OnResize(e); input.SetBounds(40, (Height - input.PreferredHeight) / 2, Math.Max(20, Width - 80), input.PreferredHeight); }
-    private void Commit() { var previous = value; if (input.Text != lastFormatted && decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) value = Math.Clamp(parsed, Minimum, Maximum); RefreshText(); if (previous != value) ValueChanged?.Invoke(this, EventArgs.Empty); }
-    private void RefreshText() { lastFormatted = value.ToString("F" + DecimalPlaces, CultureInfo.CurrentCulture); input.Text = lastFormatted; }
+
+    public UiSlider(string label, decimal minimum, decimal maximum, decimal increment, decimal initialValue)
+    {
+        this.minimum = minimum;
+        this.maximum = maximum;
+        decimalPlaces = increment < 1 ? 2 : 0;
+        scale = decimalPlaces == 0 ? 1 : 100;
+        int smallChange = (int)(increment * scale);
+        track = new TrackBar
+        {
+            AccessibleName = label,
+            AutoSize = false,
+            TickStyle = TickStyle.None,
+            Minimum = (int)(minimum * scale),
+            Maximum = (int)(maximum * scale),
+            SmallChange = smallChange,
+            LargeChange = smallChange * 5,
+            BackColor = Ui.Surface,
+            TabIndex = 0
+        };
+        track.ValueChanged += (_, _) =>
+        {
+            if (!updatingTrack) Value = track.Value / scale;
+        };
+        input.AccessibleName = $"Valor de {label}";
+        input.TabIndex = 1;
+        input.Validated += (_, _) => Commit();
+        input.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode is not (Keys.Up or Keys.Down)) return;
+            Value += e.KeyCode == Keys.Up ? increment : -increment;
+            e.SuppressKeyPress = true;
+        };
+        Height = 36;
+        MinimumSize = new Size(120, 36);
+        BackColor = Ui.Surface;
+        Font = Ui.Font();
+        TabStop = false;
+        Controls.AddRange([track, input]);
+        Value = initialValue;
+    }
+
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        if (track is null) return;
+        int inputWidth = LogicalToDeviceUnits(56);
+        int gap = LogicalToDeviceUnits(8);
+        int inputHeight = input.PreferredHeight;
+        track.SetBounds(0, 0, Math.Max(1, Width - inputWidth - gap), Height);
+        input.SetBounds(Width - inputWidth, (Height - inputHeight) / 2, inputWidth, inputHeight);
+    }
+
+    private void Commit()
+    {
+        if (input.Text == lastFormatted) return;
+        if (decimal.TryParse(input.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed))
+            Value = parsed;
+        else
+            RefreshText();
+    }
+
+    private void RefreshText()
+    {
+        lastFormatted = value.ToString("F" + decimalPlaces, CultureInfo.CurrentCulture);
+        input.Text = lastFormatted;
+    }
 }
 
 internal sealed class UiCard : Panel
