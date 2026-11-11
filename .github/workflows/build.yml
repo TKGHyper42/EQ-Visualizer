@@ -84,6 +84,7 @@ jobs:
           path: TestResults/${{ matrix.arch }}/
           if-no-files-found: warn
 
+  # Private V2 uploads run only from the tagged main build.
   private-assets:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && github.repository == 'TKGHyper42/EQ-Visualizer' && github.event.repository.private && contains(github.event.head_commit.message, '[private-build]')
