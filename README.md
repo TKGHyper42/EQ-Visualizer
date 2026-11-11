@@ -4,87 +4,92 @@
 
 ### Tu música. Tu portada. Un escritorio con vida.
 
-Tu música ya suena. Ahora también puede transformar tu escritorio.
-
-**Windows · Música · Portadas · Personalización**
+**Wallpaper musical para Windows 10 y Windows 11**
 
 </div>
 
 ![Concepto visual de EQ Visualizer en tonos melocotón y lila](assets/eq-visualizer-hero.png)
 
-<p align="center"><sub>Ilustración conceptual. El wallpaper toma su imagen y sus colores de la música que escuchas.</sub></p>
+<p align="center"><sub>Ilustración conceptual. EQ usa la portada y la paleta de la canción activa para construir el fondo.</sub></p>
 
 ---
 
-## 🎵 Dale vida a tu música
+## Qué es
 
-EQ Visualizer es un wallpaper musical para Windows que acompaña lo que ya reproduces en tus aplicaciones. Cuando Windows comparte una sesión musical compatible, su portada, título y artista se convierten en el punto de partida de tu escritorio.
+EQ Visualizer convierte la sesión multimedia que Windows expone de una aplicación compatible en un wallpaper animado real. La portada, el título y el artista aparecen detrás de los iconos del escritorio, mientras las barras reaccionan al audio que eliges analizar.
 
-La imagen gana profundidad, sus colores envuelven el fondo y el visualizador reacciona al sonido que elijas analizar. Todo se integra detrás de los iconos: tu música sigue en su reproductor y tu escritorio sigue siendo tuyo.
+No es una ventana flotante ni depende de Lively. EQ integra su propio motor de escritorio con WorkerW, aplica su imagen de fondo en Windows y restaura tu fondo anterior al salir.
 
-## ✨ Hecho para tu estilo
+## Funciones principales
 
-- **La portada como protagonista.** Un fondo inspirado en la canción, con un recorrido continuo entre sus imágenes.
-- **Movimiento que se siente.** Profundidad y paralaje suave al mover el cursor, con la opción de desactivarlos.
-- **Círculo, franja o los dos.** Rodea la portada con el visualizador, colócalo sobre la barra de tareas o combina ambas formas.
-- **Todo en su sitio.** Ajusta posición, tamaño, intensidad y suavidad hasta encontrar tu combinación. Mira el resultado en la vista previa antes de guardar.
-- **Una interfaz muy tuya.** Explora temas claros y oscuros, elige el acento y ajusta la transparencia. Carbón ofrece un aspecto negro y gris; Aurora añade tonos melocotón y lila.
-- **Control al instante.** Activa tus efectos desde la bandeja del sistema o con tus propios atajos de teclado.
-- **Tu canción a la vista.** Muestra u oculta el título y el artista debajo de la portada.
-- **También cuando hay silencio.** Si no hay sesión musical, puedes mostrar un reloj digital redondeado o analógico circular, una imagen de tu equipo o ambos.
-- **Una pausa cuando hace falta.** La animación descansa cuando el escritorio queda cubierto y vuelve cuando lo necesitas.
+- **Portada, canción y artista.** Obtiene los metadatos de las sesiones multimedia de Windows, por ejemplo de YouTube en Chrome o Spotify cuando la aplicación los publica.
+- **Barras con la paleta de la portada.** El degradado se calcula con los colores dominantes de cada portada. Puedes usar **solo círculo**, **solo franja inferior** o ambos.
+- **Tamaño independiente.** Ajusta por separado la altura de las barras circulares y de la franja, de 50 % a 200 %, además de su grosor.
+- **Fondo con profundidad.** El desenfoque conserva la portada y el texto nítidos. El efecto de túnel usa anillos en perspectiva coloreados por la portada, sin repetir la carátula.
+- **Modo sin música.** Al pausar durante aproximadamente 600 ms, muestra un reloj digital o analógico, una imagen local, ambos, o conserva la portada. Al cerrar o detener una sesión, el cambio se realiza al recibir el evento de Windows.
+- **Audio automático o elegido.** Selecciona automáticamente una sesión, una sesión concreta, la mezcla completa de salida o un proceso aislado. Los metadatos y la fuente de audio se configuran de forma independiente.
+- **Controles de escritorio.** Icono de bandeja, acceso directo a Ajustes, minimizar, maximizar, restaurar y cerrar. No se crea una ventana nueva cuando cambia la canción.
+- **Compatibilidad con RivaTuner.** Puedes cambiar a GDI+ para evitar que el renderizado Direct3D sea detectado como juego.
 
-![Composición conceptual con visualizador circular y franja inferior](assets/eq-visualizer-spectrum.png)
+## Instalación
 
-<p align="center"><sub>Ilustración del wallpaper, no una captura de la interfaz de Ajustes. No incluye canciones ni portadas de terceros.</sub></p>
+### Ejecutable portátil
 
-## 🚀 Empieza a escuchar
+Descarga **`EQVisualizer-win-x64.exe`** desde [Releases](https://github.com/TKGHyper42/EQ-Visualizer/releases), guárdalo en la carpeta donde quieras conservar EQ y ejecútalo. El `.exe` es autocontenido: no requiere el ZIP ni una instalación adicional de .NET.
 
-### 1. Abre EQ Visualizer
+El archivo **`EQVisualizer-win-x64.zip`** es una alternativa que incluye el mismo ejecutable, la documentación y las licencias. El archivo **`SHA256SUMS.txt`** permite comprobar su integridad. Usa **x64** en Windows 11 y Windows 10 de 64 bits. La versión x86 está dirigida a instalaciones de 32 bits con soporte limitado.
 
-Descarga el ZIP para tu equipo desde [Releases](https://github.com/TKGHyper42/EQ-Visualizer/releases), extráelo completo y ejecuta **EQVisualizer.exe**. Encontrarás su icono junto al reloj de Windows.
+Consulta [COMPATIBILITY.md](COMPATIBILITY.md) para conocer requisitos, límites de la captura aislada y compatibilidad de aplicaciones.
 
-Usa **x64** en Windows 11 y Windows 10 de 64 bits. La versión **x86** está destinada a Windows 10 de 32 bits, con soporte limitado. Consulta la [compatibilidad](COMPATIBILITY.md) antes de instalar.
+## Uso rápido
 
-### 2. Pon tu música
+1. Abre `EQVisualizer-win-x64.exe`. En Bienvenida elige círculo, franja o ambos.
+2. Reproduce música o un video musical en una aplicación que comparta su sesión con Windows.
+3. Haz doble clic en el icono de EQ junto al reloj de Windows para abrir **Ajustes**.
+4. En **Portada**, activa la información de la canción y elige qué aparece cuando no hay música.
+5. En **Audio**, configura la fuente, sensibilidad, grosor y la altura independiente de cada estilo de barras.
+6. En **Movimiento**, activa el túnel y ajusta el desenfoque del fondo. Pulsa **Guardar cambios** para aplicarlos al escritorio.
 
-Reproduce una canción en tu aplicación de música. Si tienes varias sesiones, elige la que quieres seguir en **Reproductor**, desde la bandeja. Algunas aplicaciones no comparten una sesión compatible o no ofrecen portada.
+El menú del icono de bandeja permite cambiar el visualizador, elegir el reproductor, seleccionar la fuente de audio, ver el estado y crear un acceso directo de escritorio que abre Ajustes en la instancia existente.
 
-En **Capturar sonido de** elige la salida completa o una aplicación compatible con captura aislada. La salida completa también puede incluir sonidos de otras aplicaciones. La elección del sonido y la del reproductor son independientes.
+## Audio y detección multimedia
 
-### 3. Dale tu toque
+EQ usa dos sistemas separados:
 
-Abre **Ajustes** desde la bandeja. Usa los deslizadores para ajustar el tamaño, la posición y la intensidad, o escribe un valor en el campo junto al control. Comprueba la composición en la vista previa y pulsa **Guardar cambios** cuando te guste el resultado. La vista previa usa una señal simulada.
-
-Haz doble clic en el icono de la bandeja para abrir Ajustes. En el menú del icono puedes elegir **Crear acceso directo en el escritorio**. El acceso abre Ajustes en la instancia que ya está en ejecución.
-
-La barra superior de Ajustes permite minimizar, maximizar, restaurar y cerrar la ventana.
-
-### 4. Disfruta
-
-Sigue trabajando, escuchando o descansando. Puedes activar o desactivar los efectos cuando quieras y salir desde el menú de la bandeja.
-
-## 🎛️ Encuentra tu combinación
-
-| Si prefieres… | Prueba… |
+| Para… | Usa… |
 | --- | --- |
-| Un escritorio tranquilo | Movimiento suave y un visualizador pequeño |
-| Que la portada destaque | El visualizador alrededor de la imagen |
-| Más espacio para tus archivos | Una franja de audio sobre la barra de tareas |
-| Menos movimiento | Desactivar el paralaje y reducir la intensidad |
-| Una experiencia más fluida | Ajustar el límite de FPS a tu equipo |
+| Portada, título y artista | **Reproductor**: sesiones multimedia que Windows comparte |
+| Movimiento de las barras | **Capturar sonido de**: mezcla de salida o proceso aislado |
 
-## 🔒 Tu música se queda contigo
+El modo **Automático** elige una sesión musical disponible. En modo de mezcla, las barras reaccionan a todo lo que suene en la salida seleccionada. En modo de proceso, eliges manualmente una aplicación de audio para aislarla. El aislamiento por proceso requiere Windows build 20348 o posterior y no se selecciona automáticamente porque una sesión multimedia no expone de forma fiable el proceso de audio correspondiente.
 
-EQ Visualizer analiza el sonido para crear los efectos. No graba tus canciones, no transmite el audio y no guarda tu historial musical. Tampoco necesitas iniciar sesión en Spotify ni compartir contraseñas.
+Algunas aplicaciones no publican título, artista o portada a Windows. En esos casos EQ muestra lo que la sesión sí proporcione y mantiene el visualizador según la fuente de audio elegida.
 
-La imagen personalizada permanece en tu equipo. El programa solo recuerda la ubicación que elegiste.
+## Ajustes destacados
 
-La captura aislada y la integración con el escritorio dependen de la versión de Windows y de la aplicación musical. Encontrarás los requisitos y las limitaciones en la [guía de compatibilidad](COMPATIBILITY.md).
+| Sección | Ajustes |
+| --- | --- |
+| **Portada** | Tamaño y posición, título y artista, reloj, imagen local y comportamiento sin música |
+| **Audio** | Fuente de captura, sensibilidad, suavizado, grosor, altura del círculo y altura de la franja |
+| **Movimiento** | Túnel, paralaje, fuerza del movimiento y desenfoque de fondo |
+| **Rendimiento** | FPS, escala interna, capas y motor GDI+ de compatibilidad |
+| **Interfaz** | Temas claros y oscuros, color de acento y transparencia |
 
-## 💜 Hecho para disfrutar el escritorio
+Los controles numéricos usan sliders y admiten un valor exacto junto al deslizador. La vista previa usa una señal simulada y te permite comprobar los cambios antes de guardar.
 
-Una canción puede cambiar el ambiente de una habitación. EQ Visualizer lleva esa misma idea a tu pantalla.
+## Rendimiento, iconos y pantalla completa
+
+EQ deja el visualizador detrás de los iconos y consulta su posición para aplicar contraste local cuando Windows lo permite. Si otra ventana maximizada o a pantalla completa cubre un monitor, pausa el renderizado y la captura de esa pantalla para evitar consumo innecesario. La reproducción de música no se pausa.
+
+Direct3D 11 se utiliza cuando está disponible. Si RivaTuner detecta EQ como juego, activa **Rendimiento → Motor gráfico → Usar GDI+ (compatibilidad)**. Este modo evita Direct3D, aunque puede usar más CPU según la resolución y el límite de FPS.
+
+## Privacidad
+
+EQ analiza niveles de audio localmente para animar las barras. No graba canciones, no transmite audio, no requiere una cuenta de Spotify y no guarda historial musical. Los ajustes se guardan en `%LOCALAPPDATA%/EQVisualizer/settings.json` sin títulos, artistas, portadas ni muestras de audio.
+
+## Salir y restaurar el fondo
+
+Selecciona **Salir** en el icono de bandeja para cerrar EQ y restaurar el fondo de Windows que estaba activo antes de abrirlo. EQ no configura inicio automático ni requiere permisos de administrador.
 
 ---
 
@@ -93,3 +98,4 @@ Una canción puede cambiar el ambiente de una habitación. EQ Visualizer lleva e
 Creado por **TKGHyper42** · [Licencia MIT](LICENSE)
 
 </div>
+
