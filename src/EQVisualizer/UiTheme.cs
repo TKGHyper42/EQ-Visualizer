@@ -50,7 +50,9 @@ internal static class Ui
 
 internal class ModernForm : Form
 {
-    protected ModernForm(string caption)
+    private readonly UiButton? maximize;
+
+    protected ModernForm(string caption, bool windowControls = false)
     {
         Text = caption; FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.CenterScreen;
         Icon = Ui.CreateIcon();
@@ -58,11 +60,46 @@ internal class ModernForm : Form
         Padding = new Padding(1); DoubleBuffered = true;
         var chrome = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Ui.Sidebar, Padding = new Padding(16, 0, 10, 0) };
         var label = new Label { Text = caption, ForeColor = Ui.Muted, Font = Ui.Font(9), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
-        var close = new UiButton { Text = "×", Dock = DockStyle.Right, Width = 36, Height = 32, AccessibleName = "Cerrar", Quiet = true };
+        var close = CaptionButton("×", "Cerrar");
         close.Click += (_, _) => Close();
         void Drag(object? sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { ReleaseCapture(); SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero); } }
-        chrome.MouseDown += Drag; label.MouseDown += Drag; chrome.Controls.Add(label); chrome.Controls.Add(close); Controls.Add(chrome);
+        chrome.MouseDown += Drag;
+        label.MouseDown += Drag;
+        chrome.Controls.Add(label);
+        if (windowControls)
+        {
+            var minimize = CaptionButton("−", "Minimizar");
+            minimize.Click += (_, _) => WindowState = FormWindowState.Minimized;
+            maximize = CaptionButton("□", "Maximizar");
+            maximize.Click += (_, _) => ToggleMaximized();
+            chrome.Controls.Add(minimize);
+            chrome.Controls.Add(maximize);
+        }
+        chrome.Controls.Add(close);
+        Controls.Add(chrome);
         Chrome = chrome;
+    }
+    private static UiButton CaptionButton(string symbol, string action) =>
+        new() { Text = symbol, Dock = DockStyle.Right, Width = 36, Height = 32, AccessibleName = action, Quiet = true };
+
+    private void ToggleMaximized()
+    {
+        if (WindowState == FormWindowState.Maximized)
+        {
+            WindowState = FormWindowState.Normal;
+            return;
+        }
+        MaximizedBounds = Screen.FromControl(this).WorkingArea;
+        WindowState = FormWindowState.Maximized;
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        if (maximize is null) return;
+        bool isMaximized = WindowState == FormWindowState.Maximized;
+        maximize.Text = isMaximized ? "❐" : "□";
+        maximize.AccessibleName = isMaximized ? "Restaurar" : "Maximizar";
     }
     protected Panel Chrome { get; }
     protected double WindowOpacity { get; set; } = 1;
@@ -82,7 +119,7 @@ internal class ModernForm : Form
     protected override void WndProc(ref Message m)
     {
         base.WndProc(ref m);
-        if (m.Msg != 0x84 || (int)m.Result != 1 || MinimumSize == MaximumSize) return;
+        if (m.Msg != 0x84 || (int)m.Result != 1 || MinimumSize == MaximumSize || WindowState == FormWindowState.Maximized) return;
         var p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
         int edge = Math.Max(5, DeviceDpi / 24); bool left = p.X < edge, right = p.X >= Width - edge, top = p.Y < edge, bottom = p.Y >= Height - edge;
         m.Result = (IntPtr)(top ? (left ? 13 : right ? 14 : 12) : bottom ? (left ? 16 : right ? 17 : 15) : left ? 10 : right ? 11 : 1);

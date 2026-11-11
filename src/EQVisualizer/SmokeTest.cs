@@ -108,6 +108,21 @@ internal static class SmokeTest
             var before = System.Text.Json.JsonSerializer.Serialize(values);
             using var settings = new SettingsForm(values, new Bitmap(cover));
             settings.Show(); PumpAnimations();
+            var captionButtons = settings.Controls.OfType<Panel>().SelectMany(panel => panel.Controls.OfType<UiButton>()).ToArray();
+            var maximize = captionButtons.Single(button => button.AccessibleName == "Maximizar");
+            var minimize = captionButtons.Single(button => button.AccessibleName == "Minimizar");
+            var normalBounds = settings.Bounds;
+            maximize.PerformClick();
+            if (settings.WindowState != FormWindowState.Maximized || maximize.AccessibleName != "Restaurar" ||
+                settings.Bounds != Screen.FromControl(settings).WorkingArea)
+                throw new InvalidOperationException("Maximize did not respect the monitor working area.");
+            maximize.PerformClick();
+            if (settings.WindowState != FormWindowState.Normal || settings.Bounds != normalBounds)
+                throw new InvalidOperationException("Restore did not return to the original bounds.");
+            minimize.PerformClick();
+            if (settings.WindowState != FormWindowState.Minimized)
+                throw new InvalidOperationException("Minimize did not minimize Settings.");
+            settings.WindowState = FormWindowState.Normal;
             var preview = FindPreview(settings);
             if (preview is null || !preview.Visible || preview.Width < 100 || preview.Height < 100)
                 throw new InvalidOperationException("The settings preview is not visible.");

@@ -25,7 +25,7 @@ internal sealed class SettingsForm : ModernForm
     private bool customAccent;
     private readonly UiButton accentButton = new() { Text = "Elegir color…", Width = 175 };
 
-    public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes")
+    public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes", windowControls: true)
     {
         this.settings = settings;
         ShowInTaskbar = true;

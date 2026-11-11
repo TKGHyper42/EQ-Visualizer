@@ -5,8 +5,11 @@ internal static class DesktopHost
 {
     private const uint SMTO_NORMAL = 0;
     private const int GWL_STYLE = -16;
+    private const int GWL_EXSTYLE = -20;
     private const long WS_CHILD = 0x40000000;
     private const long WS_POPUP = 0x80000000L;
+    private const long WS_EX_TRANSPARENT = 0x20;
+    private const long WS_EX_LAYERED = 0x80000;
     private static IntPtr worker;
     private static IntPtr iconLayer;
     public static bool Attach(IntPtr hwnd)
@@ -74,6 +77,10 @@ internal static class DesktopHost
         EnumWindows((window, _) =>
         {
             if (!IsWindowVisible(window) || IsIconic(window) || window == worker || GetParent(window) == worker) return true;
+            long extendedStyle = IntPtr.Size == 4 ? GetWindowLong32(window, GWL_EXSTYLE) : GetWindowLongPtr(window, GWL_EXSTYLE).ToInt64();
+            // Click-through layers such as cursor highlights can span a whole monitor.
+            const long clickThroughLayer = WS_EX_LAYERED | WS_EX_TRANSPARENT;
+            if ((extendedStyle & clickThroughLayer) == clickThroughLayer) return true;
             var cls = new System.Text.StringBuilder(256); GetClassName(window, cls, cls.Capacity);
             if (cls.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return true;
             DwmGetWindowAttribute(window, 14, out int cloaked, sizeof(int));

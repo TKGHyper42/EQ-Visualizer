@@ -58,6 +58,8 @@ Abre **Ajustes** desde la bandeja. Usa los deslizadores para ajustar el tamaño,
 
 Haz doble clic en el icono de la bandeja para abrir Ajustes. En el menú del icono puedes elegir **Crear acceso directo en el escritorio**. El acceso abre Ajustes en la instancia que ya está en ejecución.
 
+La barra superior de Ajustes permite minimizar, maximizar, restaurar y cerrar la ventana.
+
 ### 4. Disfruta
 
 Sigue trabajando, escuchando o descansando. Puedes activar o desactivar los efectos cuando quieras y salir desde el menú de la bandeja.
