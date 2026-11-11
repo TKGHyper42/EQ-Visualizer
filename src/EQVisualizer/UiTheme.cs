@@ -342,7 +342,7 @@ internal sealed class UiSlider : UserControl
 
 internal sealed class UiCard : Panel
 {
-    public UiCard() { BackColor = Ui.Surface; Padding = new Padding(18); SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true); }
+    public UiCard() { BackColor = Ui.Surface; Padding = new Padding(18); SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); }
     protected override void OnPaintBackground(PaintEventArgs e)
     {
         e.Graphics.Clear(Parent?.BackColor ?? Ui.Background); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;

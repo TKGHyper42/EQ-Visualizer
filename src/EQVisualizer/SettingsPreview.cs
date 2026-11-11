@@ -28,7 +28,8 @@ internal sealed class SettingsPreview : Control
 
     public SettingsPreview(Image? currentArtwork)
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
+            ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw, true);
         artwork = currentArtwork ?? SampleArtwork();
         sampleArtwork = currentArtwork is null;
         using var sample = new Bitmap(artwork, 32, 32);
