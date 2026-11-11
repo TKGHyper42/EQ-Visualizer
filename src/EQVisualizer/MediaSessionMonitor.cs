@@ -6,16 +6,20 @@ using Windows.Storage.Streams;
 
 namespace EQVisualizer;
 
-internal sealed class NowPlayingChangedEventArgs(string title, string artist, Image? artwork, bool isPlaying, bool hasSession) : EventArgs
+internal sealed class NowPlayingChangedEventArgs(string title, string artist, Image? artwork, PlaybackActivity activity, bool hasSession) : EventArgs
 {
     public string Title { get; } = title;
     public string Artist { get; } = artist;
     public Image? Artwork { get; } = artwork;
-    public bool IsPlaying { get; } = isPlaying;
+    public PlaybackActivity Activity { get; } = activity;
     public bool HasSession { get; } = hasSession;
 }
 
 internal sealed record MediaSessionChoice(string Id, string Label);
+internal sealed class PlaybackStateChangedEventArgs(PlaybackActivity activity) : EventArgs
+{
+    public PlaybackActivity Activity { get; } = activity;
+}
 
 internal sealed class MediaSessionsChangedEventArgs(IReadOnlyList<MediaSessionChoice> sessions) : EventArgs
 {
@@ -31,6 +35,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
     private GlobalSystemMediaTransportControlsSession? session;
     private string? preferredSourceId;
     public event EventHandler<NowPlayingChangedEventArgs>? Changed;
+    public event EventHandler<PlaybackStateChangedEventArgs>? PlaybackChanged;
     public event EventHandler<MediaSessionsChangedEventArgs>? SessionsChanged;
 
     public async Task StartAsync(string? sourceId)
@@ -42,10 +47,10 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             if (disposed) return;
             manager.CurrentSessionChanged += OnCurrentSessionChanged;
             manager.SessionsChanged += OnSessionsChanged;
-            await PublishSessionsAsync();
             await SelectCurrentSessionAsync();
+            await PublishSessionsAsync();
         }
-        catch { Publish("", "", null, false, false); }
+        catch { Publish(null, "", "", null, Volatile.Read(ref generation)); }
     }
 
     private async void OnCurrentSessionChanged(
@@ -59,13 +64,13 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         GlobalSystemMediaTransportControlsSessionManager sender,
         SessionsChangedEventArgs args)
     {
-        try { await PublishSessionsAsync(); await SelectCurrentSessionAsync(); } catch { }
+        try { await SelectCurrentSessionAsync(); await PublishSessionsAsync(); } catch { }
     }
 
     public async Task SelectSourceAsync(string? sourceId)
     {
         preferredSourceId = sourceId;
-        try { await SelectCurrentSessionAsync(); } catch { Publish("", "", null, false, false); }
+        try { await SelectCurrentSessionAsync(); } catch { Publish(null, "", "", null, Volatile.Read(ref generation)); }
     }
 
     private async Task SelectCurrentSessionAsync()
@@ -74,7 +79,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         try
         {
             if (disposed) return;
-            Interlocked.Increment(ref generation);
+            int version = Interlocked.Increment(ref generation);
             if (session is not null)
             {
                 session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
@@ -83,8 +88,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
             session = manager is null ? null :
                 (preferredSourceId is null
                     ? manager.GetCurrentSession()
-                    : manager.GetSessions().FirstOrDefault(item =>
-                        string.Equals(item.SourceAppUserModelId, preferredSourceId, StringComparison.Ordinal)));
+                    : FindPreferredSession(manager, preferredSourceId));
             if (preferredSourceId is null && manager is not null)
             {
                 bool currentIsMusic = false;
@@ -107,22 +111,56 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
                     }
                 }
             }
-            if (session is null) { Publish("", "", null, false, false); return; }
+            if (session is null) { Publish(null, "", "", null, version); return; }
             session.MediaPropertiesChanged += OnMediaPropertiesChanged;
             session.PlaybackInfoChanged += OnPlaybackInfoChanged;
-            await PublishSessionAsync();
+            _ = PublishSessionAsync();
         }
         finally { selectionGate.Release(); }
+    }
+
+    private static GlobalSystemMediaTransportControlsSession? FindPreferredSession(
+        GlobalSystemMediaTransportControlsSessionManager manager, string sourceId)
+    {
+        var sessions = manager.GetSessions();
+        return sessions.FirstOrDefault(item => string.Equals(item.SourceAppUserModelId, sourceId, StringComparison.Ordinal))
+            ?? sessions.FirstOrDefault(item => MediaSourceIdentity.Matches(item.SourceAppUserModelId, sourceId));
     }
 
     private async void OnMediaPropertiesChanged(
         GlobalSystemMediaTransportControlsSession sender,
         MediaPropertiesChangedEventArgs args)
-    { try { await PublishSessionAsync(); await PublishSessionsAsync(); } catch { } }
+    {
+        if (!ReferenceEquals(sender, session)) return;
+        try { await PublishSessionAsync(); await PublishSessionsAsync(); } catch { }
+    }
 
-    private async void OnPlaybackInfoChanged(
+    private void OnPlaybackInfoChanged(
         GlobalSystemMediaTransportControlsSession sender,
-        PlaybackInfoChangedEventArgs args) => await PublishSessionAsync();
+        PlaybackInfoChangedEventArgs args)
+    {
+        if (disposed || !ReferenceEquals(sender, session)) return;
+        context.Post(_ =>
+        {
+            if (disposed || !ReferenceEquals(sender, session)) return;
+            PlaybackChanged?.Invoke(this, new PlaybackStateChangedEventArgs(ReadActivity(sender)));
+        }, null);
+    }
+
+    private static PlaybackActivity ReadActivity(GlobalSystemMediaTransportControlsSession current)
+    {
+        try
+        {
+            return current.GetPlaybackInfo().PlaybackStatus switch
+            {
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => PlaybackActivity.Playing,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Stopped or
+                    GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed => PlaybackActivity.Stopped,
+                _ => PlaybackActivity.Paused
+            };
+        }
+        catch { return PlaybackActivity.Paused; }
+    }
 
     private async Task PublishSessionsAsync()
     {
@@ -148,19 +186,29 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
 
     private async Task PublishSessionAsync()
     {
-        int version = Interlocked.Increment(ref generation);
+            int version = Interlocked.Increment(ref generation);
         var current = session;
         if (disposed || current is null) return;
         try
         {
             var properties = await current.TryGetMediaPropertiesAsync();
             if (disposed || version != generation || !ReferenceEquals(current, session)) return;
-            if (!IsMusic(properties)) { Publish("", "", null, false, false); return; }
-            Image? image = properties.Thumbnail is null ? null : await ReadArtworkAsync(properties.Thumbnail);
-            bool playing = current.GetPlaybackInfo().PlaybackStatus ==
-                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            if (!IsMusic(properties)) { Publish(null, "", "", null, version); return; }
+            Image? image = null;
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                if (properties.Thumbnail is not null)
+                {
+                    try { image = await ReadArtworkAsync(properties.Thumbnail); } catch { }
+                    if (image is not null) break;
+                }
+                if (attempt == 3) break;
+                await Task.Delay(125);
+                if (disposed || version != generation || !ReferenceEquals(current, session)) return;
+                properties = await current.TryGetMediaPropertiesAsync();
+            }
             if (disposed || version != generation || !ReferenceEquals(current, session)) { image?.Dispose(); return; }
-            Publish(properties.Title ?? "", properties.Artist ?? "", image, playing, true);
+            Publish(current, properties.Title ?? "", properties.Artist ?? "", image, version);
         }
         catch { }
     }
@@ -174,9 +222,12 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         await reader.LoadAsync(length);
         byte[] bytes = new byte[length];
         reader.ReadBytes(bytes);
-        using var memory = new MemoryStream(bytes);
-        using var decoded = Image.FromStream(memory);
-        return NormalizeArtwork(decoded);
+        return await Task.Run(() =>
+        {
+            using var memory = new MemoryStream(bytes);
+            using var decoded = Image.FromStream(memory);
+            return NormalizeArtwork(decoded);
+        });
     }
 
     // The media API can deliver huge compressed images. Keep only a small,
@@ -209,15 +260,16 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         }
     }
 
-    private void Publish(string title, string artist, Image? artwork, bool playing, bool hasSession)
+    private void Publish(GlobalSystemMediaTransportControlsSession? source, string title, string artist, Image? artwork, int version)
     {
-        int version = generation;
         context.Post(_ =>
         {
-            if (disposed || version != generation) { artwork?.Dispose(); return; }
+            if (disposed || version != generation || source is not null && !ReferenceEquals(source, session))
+            { artwork?.Dispose(); return; }
             var handler = Changed;
             if (handler is null) { artwork?.Dispose(); return; }
-            handler(this, new NowPlayingChangedEventArgs(title, artist, artwork, playing, hasSession));
+            var activity = source is null ? PlaybackActivity.Stopped : ReadActivity(source);
+            handler(this, new NowPlayingChangedEventArgs(title, artist, artwork, activity, source is not null));
         }, null);
     }
     private static bool IsMusic(GlobalSystemMediaTransportControlsSessionMediaProperties properties) =>
@@ -239,4 +291,3 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         }
     }
 }
-

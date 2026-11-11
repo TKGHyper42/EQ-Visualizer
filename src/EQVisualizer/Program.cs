@@ -17,9 +17,15 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         Application.SetColorMode(StoredInterfaceTheme().IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
         if (args.Length == 2 && args[0] == "--smoke-test") return SmokeTest.Run(args[1]);
+        using var openSettings = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\EQVisualizer.OpenSettings");
         using var instance = new Mutex(true, "Local\\EQVisualizer.MusicWallpaper", out bool first);
-        if (!first) return 0;
-        Application.Run(new WallpaperContext());
+        if (!first)
+        {
+            openSettings.Set();
+            return 0;
+        }
+        if (args.Contains("--settings", StringComparer.Ordinal)) openSettings.Set();
+        Application.Run(new WallpaperContext(openSettings));
         return 0;
     }
     private static InterfaceTheme StoredInterfaceTheme()
@@ -58,7 +64,7 @@ internal sealed class Settings
     public float ParallaxStrength { get; set; } = 1f;
     public bool HasCompletedWelcome { get; set; }
     public bool CaptureAudio { get; set; } = true;
-    public bool EnableTunnel { get; set; } = true;
+    public bool EnableTunnel { get; set; }
     public float Sensitivity { get; set; } = 1f;
     public float Smoothing { get; set; } = .12f;
     public float RenderScale { get; set; } = 1f;
@@ -69,8 +75,11 @@ internal sealed class Settings
     public float BottomMargin { get; set; } = .025f;
     public ContrastMode ContrastMode { get; set; } = ContrastMode.Adaptive;
     public Keys EffectsHotkeyKey { get; set; } = Keys.E;
-    public bool ShowTrackInfo { get; set; }
+    public bool ShowTrackInfo { get; set; } = true;
+    public bool UseGdiRenderer { get; set; }
     public float BarThickness { get; set; } = 1.6f;
+    public float CircleBarHeight { get; set; } = 1;
+    public float BottomBarHeight { get; set; } = 1;
     public float BackgroundBlur { get; set; } = 35;
     public InterfaceTheme InterfaceTheme { get; set; } = InterfaceTheme.Carbon;
     public int InterfaceAccent { get; set; }
@@ -87,9 +96,15 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly AudioLevel audio = new();
     private readonly MediaSessionMonitor media;
     private readonly Settings settings;
+    private readonly EventWaitHandle openSettings;
+    private SettingsForm? activeSettings;
     private readonly HotkeyWindow hotkey = new();
     private readonly ToolStripMenuItem sourceMenu = new("Reproductor");
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 500 };
+    private readonly System.Windows.Forms.Timer pauseTimer = new() { Interval = 600 };
+    private NowPlayingChangedEventArgs? currentTrack;
+    private PlaybackActivity activity;
+    private bool showingTrack;
     private readonly DesktopIconContrast iconContrast = new();
     private readonly ToolStripMenuItem deviceMenu = new("Salida de audio (mezcla completa)");
     private readonly ToolStripMenuItem captureSourceMenu = new("Capturar sonido de");
@@ -101,8 +116,9 @@ internal sealed class WallpaperContext : ApplicationContext
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "EQVisualizer", "settings.json");
 
-    public WallpaperContext()
+    public WallpaperContext(EventWaitHandle openSettings)
     {
+        this.openSettings = openSettings;
         try { settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(settingsPath)) ?? new(); }
         catch { settings = new(); }
         settings.Fps = Math.Clamp(settings.Fps, 30, 120);
@@ -116,6 +132,8 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.PositionY = Math.Clamp(settings.PositionY, .1f, .9f);
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
+        settings.CircleBarHeight = Math.Clamp(settings.CircleBarHeight, .5f, 2);
+        settings.BottomBarHeight = Math.Clamp(settings.BottomBarHeight, .5f, 2);
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
         if (!Enum.IsDefined(settings.VisualizerMode)) settings.VisualizerMode = VisualizerMode.Both;
@@ -127,6 +145,7 @@ internal sealed class WallpaperContext : ApplicationContext
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
+        menu.Items.Add("Crear acceso directo en el escritorio", null, (_, _) => CreateDesktopShortcut());
         var modeMenu = new ToolStripMenuItem("Visualizador");
         foreach (var mode in VisualizerModes.All)
         {
@@ -157,18 +176,35 @@ internal sealed class WallpaperContext : ApplicationContext
         menu.Items.Insert(2, new ToolStripMenuItem("Estado", null, (_, _) => MessageBox.Show(
             string.Join("\n", forms.Select(f => f.RendererName)) + "\nContraste: " + iconContrast.Status +
             "\nAudio: " + (audio.Error ?? (settings.CaptureAudio ? settings.AudioProcessId > 0 ? $"Proceso {settings.AudioProcessId} (aislado)" : "Mezcla de la salida elegida" : "Desactivado")), "EQ Visualizer")));
-        tray.DoubleClick += (_, _) => Toggle();
+        tray.DoubleClick += (_, _) => ShowSettings();
         hotkey.ToggleRequested += (_, _) => Toggle();
-        hotkey.EffectsRequested += (_, _) => { settings.EnableTunnel = !settings.EnableTunnel; settings.EnableParallax = settings.EnableTunnel; Save(); };
+        hotkey.EffectsRequested += (_, _) =>
+        {
+            settings.EnableTunnel = !settings.EnableTunnel;
+            settings.EnableParallax = settings.EnableTunnel;
+            Save();
+            foreach (var form in forms) form.RefreshState(true);
+            UpdateWindowsWallpaper();
+        };
         if (!hotkey.Configure(settings))
             tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo Ctrl + Alt + V ya está en uso.", ToolTipIcon.Warning);
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
-        recoveryTimer.Tick += (_, _) => RecoverDesktop();
+        recoveryTimer.Tick += (_, _) =>
+        {
+            RecoverDesktop();
+            if (openSettings.WaitOne(0)) ShowSettings();
+        };
         recoveryTimer.Start();
+        pauseTimer.Tick += (_, _) => { pauseTimer.Stop(); RefreshMediaPresentation(); };
         CreateWallpapers();
         media.Changed += OnMediaChanged;
+        media.PlaybackChanged += (_, e) =>
+        {
+            SetMediaActivity(e.Activity);
+            RefreshMediaPresentation();
+        };
         media.SessionsChanged += OnSessionsChanged;
         _ = media.StartAsync(settings.MediaSourceId);
         if (forms.Count > 0) forms[0].BeginInvoke(ShowWelcomeIfNeeded);
@@ -176,7 +212,7 @@ internal sealed class WallpaperContext : ApplicationContext
 
     private void CreateWallpapers()
     {
-        foreach (var screen in Screen.AllScreens)
+        foreach (var screen in Screen.AllScreens.OrderByDescending(screen => screen.Primary))
         {
             var form = new WallpaperForm(screen, settings, audio);
             forms.Add(form);
@@ -192,7 +228,14 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnDisplayChanged(object? sender, EventArgs e)
     {
         if (exiting || forms.Count == 0) return;
-        forms[0].BeginInvoke(() => { foreach (var f in forms) f.Dispose(); forms.Clear(); CreateWallpapers(); _ = media.SelectSourceAsync(settings.MediaSourceId); });
+        forms[0].BeginInvoke(() =>
+        {
+            if (exiting) return;
+            foreach (var form in forms) form.Dispose();
+            forms.Clear();
+            CreateWallpapers();
+            RefreshMediaPresentation(trackChanged: true);
+        });
     }
     private void RefreshDevices()
     {
@@ -295,7 +338,7 @@ internal sealed class WallpaperContext : ApplicationContext
         {
             string id = choice.Id;
             var item = (ToolStripMenuItem)sourceMenu.DropDownItems.Add(choice.Label, null, async (_, _) => await SelectSourceAsync(id));
-            item.Checked = string.Equals(settings.MediaSourceId, id, StringComparison.Ordinal);
+            item.Checked = settings.MediaSourceId is { } selected && MediaSourceIdentity.Matches(id, selected);
         }
         sourceMenu.Enabled = e.Sessions.Count > 0;
     }
@@ -310,11 +353,43 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnMediaChanged(object? sender, NowPlayingChangedEventArgs e)
     {
         if (exiting) { e.Artwork?.Dispose(); return; }
-        string label = string.IsNullOrWhiteSpace(e.Title) ? "EQ Visualizer" :
-            string.IsNullOrWhiteSpace(e.Artist) ? e.Title : $"{e.Title} — {e.Artist}";
-        tray.Text = label.Length > 63 ? label[..63] : label;
-        foreach (var form in forms) form.SetNowPlaying(e.Artwork, e.IsPlaying, e.Title, e.Artist, e.HasSession);
-        e.Artwork?.Dispose();
+        currentTrack?.Artwork?.Dispose();
+        currentTrack = e.HasSession ? e : null;
+        if (currentTrack is null) e.Artwork?.Dispose();
+        SetMediaActivity(e.Activity);
+        RefreshMediaPresentation(trackChanged: true);
+    }
+
+    private void SetMediaActivity(PlaybackActivity next)
+    {
+        if (activity == next) return;
+        activity = next;
+        pauseTimer.Stop();
+        if (activity == PlaybackActivity.Paused) pauseTimer.Start();
+    }
+
+    private bool RefreshMediaPresentation(bool trackChanged = false)
+    {
+        var track = settings.NoSessionMode.ShowTrack(activity, pauseTimer.Enabled) ? currentTrack : null;
+        bool showTrack = track is not null;
+        bool replaceScene = showingTrack != showTrack || trackChanged && showTrack;
+        bool playing = activity == PlaybackActivity.Playing;
+        if (replaceScene)
+        {
+            showingTrack = showTrack;
+            foreach (var form in forms)
+                form.SetNowPlaying(track?.Artwork, playing, track?.Title ?? "", track?.Artist ?? "", showTrack);
+            string label = string.IsNullOrWhiteSpace(track?.Title) ? "EQ Visualizer" :
+                string.IsNullOrWhiteSpace(track.Artist) ? track.Title : $"{track.Title} — {track.Artist}";
+            tray.Text = label.Length > 63 ? label[..63] : label;
+        }
+        else if (showTrack)
+        {
+            foreach (var form in forms) form.SetPlaybackState(playing);
+        }
+        audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
+        if (replaceScene || trackChanged) UpdateWindowsWallpaper();
+        return replaceScene;
     }
 
     private void Toggle()
@@ -322,7 +397,22 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.Enabled = !settings.Enabled;
         Save();
         foreach (var f in forms) f.RefreshState();
+        UpdateWindowsWallpaper();
         tray.Text = settings.Enabled ? "EQ Visualizer" : "EQ Visualizer (pausado)";
+    }
+
+    private void UpdateWindowsWallpaper()
+    {
+        if (!settings.Enabled || forms.FirstOrDefault() is not { HasMusicSession: true } form)
+        {
+            WindowsWallpaper.Restore();
+            return;
+        }
+        try
+        {
+            if (form.CreateWindowsWallpaper() is { } image) WindowsWallpaper.Apply(image);
+        }
+        catch (Exception error) { Trace.TraceWarning("EQ Visualizer wallpaper: {0}", error.Message); }
     }
 
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
@@ -376,9 +466,20 @@ internal sealed class WallpaperContext : ApplicationContext
     }
     private void ShowSettings()
     {
+        if (activeSettings is { } current)
+        {
+            if (current.WindowState == FormWindowState.Minimized) current.WindowState = FormWindowState.Normal;
+            current.Activate();
+            return;
+        }
+        bool previousRenderer = settings.UseGdiRenderer;
         var previous = (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift);
         using var window = new SettingsForm(settings, forms.Count > 0 ? forms[0].CopyArtwork() : null);
-        if (window.ShowDialog() != DialogResult.OK) return;
+        activeSettings = window;
+        DialogResult result;
+        try { result = window.ShowDialog(); }
+        finally { activeSettings = null; }
+        if (result != DialogResult.OK) return;
         if (!hotkey.Configure(settings))
         {
             (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
@@ -389,7 +490,35 @@ internal sealed class WallpaperContext : ApplicationContext
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         Application.SetColorMode(settings.InterfaceTheme.IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
         if (tray.ContextMenuStrip is { } menu) { menu.BackColor = Ui.Surface; menu.ForeColor = Ui.Text; menu.Invalidate(true); }
-        foreach (var form in forms) form.RefreshIdleOptions();
+        foreach (var form in forms)
+        {
+            if (previousRenderer != settings.UseGdiRenderer) form.ConfigureRenderer();
+            form.RefreshIdleOptions();
+        }
+        if (!RefreshMediaPresentation()) UpdateWindowsWallpaper();
+    }
+
+    private void CreateDesktopShortcut()
+    {
+        try
+        {
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            string executable = Environment.ProcessPath ?? throw new InvalidOperationException("No se encontró el ejecutable.");
+            if (string.IsNullOrEmpty(desktop)) throw new DirectoryNotFoundException("No se encontró la carpeta Escritorio.");
+            var shellType = Type.GetTypeFromProgID("WScript.Shell", throwOnError: true)!;
+            dynamic shell = Activator.CreateInstance(shellType)!;
+            dynamic shortcut = shell.CreateShortcut(Path.Combine(desktop, "EQ Visualizer.lnk"));
+            shortcut.TargetPath = executable;
+            shortcut.Arguments = "--settings";
+            shortcut.WorkingDirectory = AppContext.BaseDirectory;
+            shortcut.IconLocation = executable + ",0";
+            shortcut.Description = "Abrir Ajustes de EQ Visualizer";
+            shortcut.Save();
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("No se pudo crear el acceso directo. " + error.Message, "EQ Visualizer");
+        }
     }
 
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
@@ -420,11 +549,14 @@ internal sealed class WallpaperContext : ApplicationContext
         exiting = true;
         recoveryTimer.Stop();
         recoveryTimer.Dispose();
+        pauseTimer.Dispose();
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         hotkey.Dispose();
         media.Dispose();
+        currentTrack?.Artwork?.Dispose();
+        WindowsWallpaper.Restore();
         foreach (var f in forms) { f.Close(); f.Dispose(); }
         audio.Dispose();
         tray.Visible = false;
@@ -433,4 +565,3 @@ internal sealed class WallpaperContext : ApplicationContext
         base.ExitThreadCore();
     }
 }
-

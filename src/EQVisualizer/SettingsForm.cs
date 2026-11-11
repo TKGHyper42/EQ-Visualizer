@@ -3,11 +3,12 @@ namespace EQVisualizer;
 internal sealed class SettingsForm : ModernForm
 {
     private readonly Settings settings;
-    private readonly Dictionary<string, UiNumber> numbers = [];
+    private readonly Dictionary<string, UiSlider> sliders = [];
     private readonly CheckBox capture = new UiToggle() { Text = "Analizar la salida de audio", AutoSize = false };
-    private readonly CheckBox tunnel = new UiToggle() { Text = "Túnel de portadas", AutoSize = false };
+    private readonly CheckBox tunnel = new UiToggle() { Text = "Túnel en perspectiva", AutoSize = false };
     private readonly CheckBox parallax = new UiToggle() { Text = "Seguir suavemente el cursor", AutoSize = false };
     private readonly CheckBox trackInfo = new UiToggle() { Text = "Título y artista", AutoSize = false };
+    private readonly CheckBox softwareRenderer = new UiToggle() { Text = "Usar GDI+ (compatibilidad)", AutoSize = false };
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
@@ -24,9 +25,10 @@ internal sealed class SettingsForm : ModernForm
     private bool customAccent;
     private readonly UiButton accentButton = new() { Text = "Elegir color…", Width = 175 };
 
-    public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes")
+    public SettingsForm(Settings settings, Image? artwork = null) : base("EQ Visualizer / Ajustes", windowControls: true)
     {
         this.settings = settings;
+        ShowInTaskbar = true;
         customAccent = settings.InterfaceAccent != 0;
         selectedAccent = customAccent ? InterfacePalettes.EnsureAccent(Color.FromArgb(settings.InterfaceAccent), InterfacePalettes.For(settings.InterfaceTheme).Surface)
             : InterfacePalettes.For(settings.InterfaceTheme).Accent;
@@ -70,12 +72,12 @@ internal sealed class SettingsForm : ModernForm
         var appearance = Page("Portada", "El centro de tu escritorio.");
         Row(appearance, "Visualizador", mode); mode.SelectedIndex = Math.Clamp((int)settings.VisualizerMode, 0, mode.Items.Count - 1);
         trackInfo.Checked = settings.ShowTrackInfo; Row(appearance, "Información de la canción", trackInfo);
-        Number(appearance, "Tamaño de portada (%)", "size", settings.CoverSize * 100, 15, 65);
-        Number(appearance, "Posición horizontal (%)", "x", settings.PositionX * 100, 10, 90);
-        Number(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
-        Number(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
+        Slider(appearance, "Tamaño de portada (%)", "size", settings.CoverSize * 100, 15, 65);
+        Slider(appearance, "Posición horizontal (%)", "x", settings.PositionX * 100, 10, 90);
+        Slider(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
+        Slider(appearance, "Margen sobre barra (%)", "margin", settings.BottomMargin * 100, 0, 20, 1);
         Row(appearance, "Legibilidad de iconos", contrast); contrast.SelectedIndex = Math.Clamp((int)settings.ContrastMode, 0, contrast.Items.Count - 1);
-        Row(appearance, "Cuando no hay sesión", idleMode); idleMode.SelectedIndex = Math.Clamp((int)settings.NoSessionMode, 0, idleMode.Items.Count - 1);
+        Row(appearance, "Cuando no hay música", idleMode); idleMode.SelectedIndex = Math.Clamp((int)settings.NoSessionMode, 0, idleMode.Items.Count - 1);
         Row(appearance, "Estilo de reloj", clockStyle); clockStyle.SelectedIndex = Math.Clamp((int)settings.ClockStyle, 0, clockStyle.Items.Count - 1);
         var idleFile = new Panel { Dock = DockStyle.Fill, BackColor = Ui.Elevated };
         var browse = new UiButton { Text = "Elegir…", Dock = DockStyle.Right, Width = 94 };
@@ -104,7 +106,7 @@ internal sealed class SettingsForm : ModernForm
                 customAccent = true; UpdatePreview();
             }
         };
-        Number(interfacePage, "Opacidad de Ajustes (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
+        Slider(interfacePage, "Opacidad de Ajustes (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
         var sampleRow = interfacePage.RowCount++; interfacePage.RowStyles.Add(new(SizeType.Absolute, 108));
         themeSample.Dock = DockStyle.Fill; themeSample.Margin = new Padding(0, 6, 0, 6);
         interfacePage.Controls.Add(themeSample, 0, sampleRow); interfacePage.SetColumnSpan(themeSample, 2);
@@ -113,26 +115,30 @@ internal sealed class SettingsForm : ModernForm
 
         var audio = Page("Audio", "Dale forma a lo que escuchas.");
         capture.Checked = settings.CaptureAudio; Row(audio, "Captura", capture);
-        Number(audio, "Sensibilidad", "sensitivity", settings.Sensitivity, .1m, 5, .1m);
-        Number(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
-        Number(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
-        Number(audio, "Grosor de barras (%)", "thickness", settings.BarThickness * 100, 50, 300, 10);
+        Slider(audio, "Sensibilidad", "sensitivity", settings.Sensitivity, .1m, 5, .1m);
+        Slider(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
+        Slider(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
+        Slider(audio, "Altura del círculo (%)", "circleHeight", settings.CircleBarHeight * 100, 50, 200, 5);
+        Slider(audio, "Altura de la franja (%)", "bottomHeight", settings.BottomBarHeight * 100, 50, 200, 5);
+        Slider(audio, "Grosor de barras (%)", "thickness", settings.BarThickness * 100, 50, 300, 10);
         Hint(audio, "En la bandeja, Reproductor elige metadatos y Capturar sonido de elige mezcla o proceso aislado. El aislamiento requiere Windows build 20348+ y elegir el proceso de audio correcto; en Windows 10 habitual queda disponible la mezcla completa.");
         Hint(audio, "El audio solo se analiza en memoria: no se reproduce, graba ni transmite. Sin historial musical, telemetría ni cuentas de Spotify.");
 
         var motion = Page("Movimiento", "Un poco de profundidad. A tu ritmo.");
         tunnel.Checked = settings.EnableTunnel; parallax.Checked = settings.EnableParallax;
-        Row(motion, "Profundidad", tunnel); Row(motion, "Paralaje", parallax);
-        Number(motion, "Intensidad de paralaje (%)", "parallax", settings.ParallaxStrength * 100, 0, 300);
-        Number(motion, "Desenfoque del fondo (%)", "blur", settings.BackgroundBlur, 0, 100, 5);
+        Row(motion, "Efecto opcional", tunnel); Row(motion, "Paralaje", parallax);
+        Slider(motion, "Intensidad de paralaje (%)", "parallax", settings.ParallaxStrength * 100, 0, 300);
+        Slider(motion, "Desenfoque del fondo (%)", "blur", settings.BackgroundBlur, 0, 100, 5);
         Hint(motion, "Puedes desactivar cada efecto y conservar la portada. La animación se pausa al detener la música, bloquear la sesión o cubrir el monitor con una ventana maximizada o fullscreen.");
 
         var performance = Page("Rendimiento", "Encuentra el equilibrio para tu equipo.");
-        Number(performance, "Límite de FPS", "fps", settings.Fps, 30, 120, 5);
-        Number(performance, "Escala interna (%)", "scale", settings.RenderScale * 100, 50, 100, 5);
-        Number(performance, "Capas de profundidad", "layers", settings.QualityLayers, 3, 12);
+        softwareRenderer.Checked = settings.UseGdiRenderer;
+        Row(performance, "Motor gráfico", softwareRenderer);
+        Slider(performance, "Límite de FPS", "fps", settings.Fps, 30, 120, 5);
+        Slider(performance, "Escala interna (%)", "scale", settings.RenderScale * 100, 50, 100, 5);
+        Slider(performance, "Capas de profundidad", "layers", settings.QualityLayers, 3, 12);
         Hint(performance, "45 FPS es el objetivo inicial. Baja la escala o las capas para reducir carga de GPU. La resolución parte de cada monitor. El rendimiento depende del equipo.");
-        Hint(performance, "Direct3D 11 es el motor principal. Si no está disponible se usa compatibilidad GDI+. Estado muestra el motor activo. OpenGL y Vulkan están pendientes.");
+        Hint(performance, "Usa GDI+ si RivaTuner detecta el visualizador de Direct3D. El modo de compatibilidad puede aumentar el uso de CPU. Estado muestra el motor activo.");
 
         var hotkeys = Page("Atajos", "Tus efectos, a una tecla de distancia.");
         toggleKey.SelectedItem = settings.HotkeyKey; effectsKey.SelectedItem = settings.EffectsHotkeyKey;
@@ -156,7 +162,7 @@ internal sealed class SettingsForm : ModernForm
         preview.Dock = DockStyle.Fill;
         previewLayout.Controls.Add(preview, 0, 0);
         previewLayout.Controls.Add(previewBar, 0, 1);
-        foreach (var box in numbers.Values) box.ValueChanged += (_, _) => UpdatePreview();
+        foreach (var slider in sliders.Values) slider.ValueChanged += (_, _) => UpdatePreview();
         foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo }) box.CheckedChanged += (_, _) => UpdatePreview();
         mode.SelectedIndexChanged += (_, _) => UpdatePreview();
         contrast.SelectedIndexChanged += (_, _) => UpdatePreview();
@@ -185,12 +191,12 @@ internal sealed class SettingsForm : ModernForm
     protected override void Dispose(bool disposing) { if (disposing) pageMotion?.Dispose(); base.Dispose(disposing); }
     private void UpdatePreview()
     {
-        if (!numbers.ContainsKey("layers")) return;
-        float N(string name) => (float)numbers[name].Value;
+        if (!sliders.ContainsKey("layers")) return;
+        float N(string name) => (float)sliders[name].Value;
         themeSample.SetPalette((InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex), selectedAccent);
         preview.SetOptions(new PreviewOptions((VisualizerMode)Math.Max(0, mode.SelectedIndex),
             N("size") / 100, N("x") / 100, N("y") / 100, N("margin") / 100,
-            N("strength") / 100, N("sensitivity"), N("thickness") / 100,
+            N("strength") / 100, N("sensitivity"), N("thickness") / 100, N("circleHeight") / 100, N("bottomHeight") / 100,
             (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
             (ContrastMode)Math.Max(0, contrast.SelectedIndex), (IdleMode)Math.Max(0, idleMode.SelectedIndex),
             previewIdle.Checked, idlePath.Text, (InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex),
@@ -229,10 +235,11 @@ internal sealed class SettingsForm : ModernForm
         control.Margin = new Padding(3, 8, 3, 8); control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
         control.AccessibleName = label; table.Controls.Add(control, 1, row);
     }
-    private void Number(TableLayoutPanel table, string label, string name, float value, decimal min, decimal max, decimal step = 1)
+    private void Slider(TableLayoutPanel table, string label, string name, float value, decimal min, decimal max, decimal step = 1)
     {
-        var box = new UiNumber { Minimum = min, Maximum = max, Increment = step, DecimalPlaces = step < 1 ? 2 : 0, Dock = DockStyle.Fill };
-        box.Value = Math.Clamp((decimal)value, min, max); numbers[name] = box; Row(table, label, box);
+        var slider = new UiSlider(label, min, max, step, (decimal)value) { Dock = DockStyle.Fill };
+        sliders[name] = slider;
+        Row(table, label, slider);
     }
     private static void Hint(TableLayoutPanel table, string text)
     {
@@ -249,9 +256,11 @@ internal sealed class SettingsForm : ModernForm
             if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||
                 Equals(toggleKey.SelectedItem, effectsKey.SelectedItem) || !ctrl.Checked && !alt.Checked && !shift.Checked)
             { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }
-            float N(string name) => (float)numbers[name].Value;
+            float N(string name) => (float)sliders[name].Value;
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
             settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
+            settings.CircleBarHeight = N("circleHeight") / 100;
+            settings.BottomBarHeight = N("bottomHeight") / 100;
             settings.BackgroundBlur = N("blur");
             settings.InterfaceTheme = (InterfaceTheme)interfaceTheme.SelectedIndex;
             settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
@@ -263,10 +272,10 @@ internal sealed class SettingsForm : ModernForm
             settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
             settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;
             settings.Fps = (int)N("fps"); settings.RenderScale = N("scale") / 100; settings.QualityLayers = (int)N("layers");
+            settings.UseGdiRenderer = softwareRenderer.Checked;
             settings.HotkeyKey = (Keys)toggleKey.SelectedItem; settings.EffectsHotkeyKey = (Keys)effectsKey.SelectedItem;
             settings.HotkeyControl = ctrl.Checked; settings.HotkeyAlt = alt.Checked; settings.HotkeyShift = shift.Checked;
         }
         base.OnFormClosing(e);
     }
 }
-

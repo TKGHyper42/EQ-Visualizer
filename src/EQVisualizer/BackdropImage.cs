@@ -10,7 +10,7 @@ internal static class BackdropImage
         const int size = 512;
         var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bitmap)) { g.InterpolationMode = InterpolationMode.HighQualityBilinear; g.DrawImage(artwork, 0, 0, size, size); }
-        int radius = (int)Math.Round(Math.Clamp(amount, 0, 100) * 24 / 100);
+        int radius = (int)MathF.Round(MathF.Pow(Math.Clamp(amount, 0, 100) / 100, .85f) * 64);
         if (radius == 0) return bitmap;
         var data = bitmap.LockBits(new Rectangle(0, 0, size, size), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
         try

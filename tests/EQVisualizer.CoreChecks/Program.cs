@@ -18,6 +18,13 @@ static byte[] Tone(int bits,bool floating,float frequency,int channels=2)
     return bytes;
 }
 var peaks=new List<int>();
+Check(MediaSourceIdentity.Matches("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!SpotifyLauncher", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "Spotify keeps its selection when the player publishes a launcher identity");
+Check(!MediaSourceIdentity.Matches("AnotherPackage!Spotify", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "A different package cannot replace the selected music player");
+Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: true), "A brief pause keeps the cover");
+Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: false), "A retained paused session gives way to the clock");
+Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Playing, pauseGrace: false), "Resume replaces the clock with the track");
+Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Stopped, pauseGrace: true), "Stop shows the clock immediately");
+Check(IdleMode.Off.ShowTrack(PlaybackActivity.Paused, pauseGrace: false), "Pause still keeps the cover when the idle scene is off");
 foreach(var format in new[]{(16,false),(24,false),(32,false),(32,true)})
 {
     var a=new AudioAnalyzer();var tone=Tone(format.Item1,format.Item2,1000);
@@ -46,6 +53,32 @@ var low=new AudioAnalyzer();low.Push(Tone(32,true,100),2,32,true,48000);
 var high=new AudioAnalyzer();high.Push(Tone(32,true,6000),2,32,true,48000);
 Check(Array.IndexOf(low.Spectrum,low.Spectrum.Max())<Array.IndexOf(high.Spectrum,high.Spectrum.Max()),"Frequency bands increase with pitch");
 var scene=new VisualScene();
+scene.Build(new(1366, 768, 0, new(.5f, .44f), .33f, .7f, 1, false,
+    false, true, .92f, 3, new(1, .25f, .15f, 1), new(.7f, .3f, .1f, 1), .75f, true),
+    Enumerable.Repeat(1f,64).ToArray(), []);
+var discreet = scene.Vertices.ToArray();
+var tightRing = new VisualScene();
+tightRing.Build(new(1366,768,0,new(.5f,.44f),.4f,3,5,false,true,false,.92f,3,
+    new(1,.25f,.15f,1),new(.7f,.3f,.1f,1),.9f,true),Enumerable.Repeat(1f,64).ToArray(),[]);
+var ringVertices=tightRing.Vertices.ToArray();
+Check(ringVertices.Count(v=>v.Textured==4)==6,"Circle mode crops the main artwork to a circle");
+Vector2 ToPixel(Vector2 p)=>new((p.X+1)*1366/2,(1-p.Y)*768/2);
+var ringStart=(ToPixel(ringVertices[24].Position)+ToPixel(ringVertices[25].Position))/2;
+var ringEnd=(ToPixel(ringVertices[26].Position)+ToPixel(ringVertices[29].Position))/2;
+Check(MathF.Abs(Vector2.Distance(ringStart,new(683,768*.44f))-(768*.4f/2+5))<.1f,"Circular bars leave a 5px gap to the artwork");
+Check(Vector2.Distance(ringStart,ringEnd)<19,"Circular bars stay below 19px even with high intensity");
+tightRing.Build(new(1366,768,0,new(.5f,.44f),.4f,1,5,false,true,false,.92f,3,
+    new(1,.25f,.15f,1),new(.7f,.3f,.1f,1),.9f,true),Enumerable.Repeat(1f,64).ToArray(),[]);
+var normalRing = tightRing.Vertices.ToArray();
+var normalEnd = (ToPixel(normalRing[26].Position) + ToPixel(normalRing[29].Position)) / 2;
+Check(Vector2.Distance(ringStart,ringEnd) > Vector2.Distance(ringStart,normalEnd),
+    "The intensity slider still affects circular bars above 100%");
+for (int i=18;i<18+64*12;i+=12)
+{
+    float height = Math.Abs(discreet[i].Position.Y - discreet[i+2].Position.Y)*768/2;
+    Check(height<=32,"Discreet strip stays below 32px at maximum signal");
+    Check(discreet[i+6].Color != discreet[i+8].Color,"Bars retain a vertical gradient from the cover palette");
+}
 foreach(var resolution in new[]{(1280,720),(1920,1080),(3840,2160)})
 foreach(var phase in new[]{0f,.3f,1f,2000f})
 {
@@ -55,8 +88,30 @@ foreach(var phase in new[]{0f,.3f,1f,2000f})
 }
 Console.WriteLine("All core checks passed.");
 var baseOptions=new SceneOptions(1280,720,0,new(.5f,.48f),.36f,1,1,false,false,false,.94f,8,Vector4.One,Vector4.One);
+scene.Build(baseOptions with { Tunnel = true }, [], []);
+var tunnel = scene.Vertices.ToArray();
+Check(tunnel.Count(v => v.Textured == 1) == 6, "Tunnel leaves a single artwork quad");
+scene.Build(baseOptions with { Tunnel = true, Phase = .45f }, [], []);
+Check(!tunnel.Select(v => v.Position).SequenceEqual(scene.Vertices.ToArray().Select(v => v.Position)),
+    "Tunnel perspective moves with phase");
 scene.Build(baseOptions,high.Spectrum,[]);
 int baseVertices=scene.Vertices.Length;
+var bothStyles = baseOptions with { Ring = true, Bottom = true };
+float[] fullSpectrum = Enumerable.Repeat(1f, 64).ToArray();
+(float Bottom, float Circle) MeasureBars(SceneOptions options)
+{
+    scene.Build(options, fullSpectrum, []);
+    var bars = scene.Vertices[baseVertices..];
+    return (MathF.Abs(bars[6].Position.Y - bars[8].Position.Y),
+        MathF.Abs(bars[18].Position.Y - bars[20].Position.Y));
+}
+var regular = MeasureBars(bothStyles);
+var tallerCircle = MeasureBars(bothStyles with { CircleBarHeight = 2 });
+var tallerBottom = MeasureBars(bothStyles with { BottomBarHeight = 2 });
+Check(tallerCircle.Circle > regular.Circle && tallerCircle.Bottom == regular.Bottom,
+    "Circle height leaves the bottom strip unchanged");
+Check(tallerBottom.Bottom > regular.Bottom && tallerBottom.Circle == regular.Circle,
+    "Bottom height leaves the circle unchanged");
 foreach(var mode in VisualizerModes.All)
 {
     scene.Build(baseOptions with{Ring=mode.HasCircle(),Bottom=mode.HasBottom()},high.Spectrum,[]);

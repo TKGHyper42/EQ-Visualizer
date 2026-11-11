@@ -54,7 +54,11 @@ En **Capturar sonido de** elige la salida completa o una aplicación compatible 
 
 ### 3. Dale tu toque
 
-Abre **Ajustes** desde la bandeja. Elige dónde colocar el visualizador y adapta la portada, el movimiento y los colores. Comprueba la composición en la vista previa y pulsa **Guardar cambios** cuando te guste el resultado. La vista previa usa una señal simulada.
+Abre **Ajustes** desde la bandeja. Usa los deslizadores para ajustar el tamaño, la posición y la intensidad, o escribe un valor en el campo junto al control. Comprueba la composición en la vista previa y pulsa **Guardar cambios** cuando te guste el resultado. La vista previa usa una señal simulada.
+
+Haz doble clic en el icono de la bandeja para abrir Ajustes. En el menú del icono puedes elegir **Crear acceso directo en el escritorio**. El acceso abre Ajustes en la instancia que ya está en ejecución.
+
+La barra superior de Ajustes permite minimizar, maximizar, restaurar y cerrar la ventana.
 
 ### 4. Disfruta
 
@@ -89,4 +93,3 @@ Una canción puede cambiar el ambiente de una habitación. EQ Visualizer lleva e
 Creado por **TKGHyper42** · [Licencia MIT](LICENSE)
 
 </div>
-

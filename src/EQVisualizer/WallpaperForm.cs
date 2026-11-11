@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Numerics;
 namespace EQVisualizer;
@@ -21,6 +20,7 @@ internal sealed class WallpaperForm : Form
     private Bitmap? brightnessSample;
     private Bitmap? caption;
     private Bitmap? backdrop;
+    private Bitmap? softwareFrame;
     private float appliedBlur = -1;
     private string title = "", artist = "";
     private D3D11Renderer? renderer;
@@ -30,32 +30,54 @@ internal sealed class WallpaperForm : Form
     public bool Attached => IsHandleCreated && DesktopHost.IsAttached(Handle);
     public Rectangle MonitorBounds => screen.Bounds;
     public bool NeedsAudio => timer.Enabled && hasMusicSession && isPlaying;
+    public bool HasMusicSession => hasMusicSession;
     public Image? CopyArtwork() => artwork is null ? null : new Bitmap(artwork);
     public string RendererName => renderer is null ? "Compatibilidad GDI+" : renderer.UsesSoftware ? "Direct3D 11 (software)" : "Direct3D 11";
     public WallpaperForm(Screen screen, Settings settings, AudioLevel audio)
     {
         this.screen = screen; this.settings = settings; this.audio = audio;
-        FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; StartPosition = FormStartPosition.Manual;
+        FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopLevel = false; StartPosition = FormStartPosition.Manual;
         Bounds = screen.Bounds; SetStyle(ControlStyles.Opaque, true);
         timer.Tick += (_, _) => TickFrame();
         if (settings.NoSessionMode != IdleMode.Off) SetNowPlaying(null, false, hasSession: false);
     }
     protected override bool ShowWithoutActivation => true;
-    public void SetAttached() { }
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= 0x08000000 | 0x00000080; // NOACTIVATE | TOOLWINDOW
+            return parameters;
+        }
+    }
     public void RefreshState(bool repaint = false)
     {
+        bool wasCovered = covered;
         covered = DesktopHost.IsCovered(screen.Bounds);
         bool idleClock = !hasMusicSession && settings.NoSessionMode.HasClock();
         bool idleImage = !hasMusicSession && settings.NoSessionMode.HasImage() && artwork is not null;
         bool show = settings.Enabled && !systemPaused && (hasMusicSession ? artwork is not null : idleClock || idleImage) && Attached;
         bool changed = Visible != show;
         if (changed) Visible = show;
+        if (show) DesktopHost.KeepBelowIcons(Handle);
         timer.Interval = idleClock ? 15000 : Math.Max(8, 1000 / settings.Fps);
         bool animate = show && !covered && (idleClock || hasMusicSession && isPlaying);
         if (timer.Enabled != animate) { timer.Enabled = animate; lastTime = clock.Elapsed.TotalSeconds; }
-        if (show && !covered && (repaint || changed)) Invalidate();
+        if (show && !covered && (repaint || changed || wasCovered))
+        {
+            if (idleClock) UpdateClock();
+            PresentFrame();
+        }
     }
     public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
+    public void SetPlaybackState(bool playing)
+    {
+        if (isPlaying == playing) return;
+        isPlaying = playing;
+        if (!playing) Array.Clear(spectrum);
+        RefreshState(true);
+    }
     public void SetNowPlaying(Image? image, bool playing, string title = "", string artist = "", bool hasSession = true)
     {
         hasMusicSession = hasSession;
@@ -64,7 +86,7 @@ internal sealed class WallpaperForm : Form
         caption?.Dispose(); caption = null;
         backdrop?.Dispose(); backdrop = null;
         try { renderer?.SetCaption(null); renderer?.SetBackground(null); } catch { DropRenderer(); }
-        artwork?.Dispose(); artwork = hasSession ? image is null ? null : new Bitmap(image) : LoadIdleImage();
+        artwork?.Dispose(); artwork = hasSession ? image is null ? MissingCover() : new Bitmap(image) : LoadIdleImage();
         brightnessSample?.Dispose(); brightnessSample = artwork is null ? null : new Bitmap(artwork, 16, 16);
         if (artwork is not null)
         {
@@ -74,6 +96,7 @@ internal sealed class WallpaperForm : Form
         }
         try { renderer?.SetArtwork(artwork); } catch { DropRenderer(); }
         isPlaying = playing;
+        if (!playing) Array.Clear(spectrum);
         if (!hasMusicSession) UpdateClock();
         RefreshState(true);
     }
@@ -86,17 +109,30 @@ internal sealed class WallpaperForm : Form
     {
         return settings.NoSessionMode.HasImage() ? LocalImage.Load(settings.NoSessionImagePath) : null;
     }
-    private void UpdateClock()
+    private static Bitmap MissingCover()
     {
-        if (hasMusicSession || !settings.NoSessionMode.HasClock()) return;
+        var image = new Bitmap(256, 256);
+        using var graphics = Graphics.FromImage(image);
+        graphics.Clear(Color.FromArgb(26, 27, 32));
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        using var font = new Font("Segoe UI", 18f, FontStyle.Regular, GraphicsUnit.Pixel);
+        using var brush = new SolidBrush(Color.FromArgb(176, 178, 187));
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        graphics.DrawString("Sin portada", font, brush, new RectangleF(0, 0, 256, 256), format);
+        return image;
+    }
+    private bool UpdateClock()
+    {
+        if (hasMusicSession || !settings.NoSessionMode.HasClock()) return false;
         string next = DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + settings.ClockStyle;
-        if (next == clockText) return;
+        if (next == clockText) return false;
         clockText = next;
         caption?.Dispose();
         var accent = artwork is null ? Ui.Accent : Color.FromArgb(
             (int)(Math.Clamp(primary.X, 0, 1) * 255), (int)(Math.Clamp(primary.Y, 0, 1) * 255), (int)(Math.Clamp(primary.Z, 0, 1) * 255));
         caption = ClockFace.Create(DateTime.Now, settings.ClockStyle, accent);
         try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
+        return true;
     }
     public void SetShades(Rectangle[] rectangles)
     {
@@ -117,27 +153,74 @@ internal sealed class WallpaperForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        ConfigureRenderer();
+    }
+    public void ConfigureRenderer()
+    {
+        DropRenderer();
+        if (settings.UseGdiRenderer || !IsHandleCreated) return;
         try { renderer = new D3D11Renderer(Handle, ClientSize.Width, ClientSize.Height); renderer.SetArtwork(artwork); renderer.SetCaption(caption); renderer.SetBackground(backdrop); } catch { DropRenderer(); }
+        if (renderer is not null) DoubleBuffered = false;
     }
     protected override void OnHandleDestroyed(EventArgs e) { DropRenderer(); base.OnHandleDestroyed(e); }
     protected override void OnPaintBackground(PaintEventArgs e) { }
     private void TickFrame()
     {
-        if (!hasMusicSession) { UpdateClock(); Invalidate(); return; }
+        if (!hasMusicSession)
+        {
+            if (UpdateClock()) PresentFrame();
+            return;
+        }
         double now = clock.Elapsed.TotalSeconds;
         float dt = (float)Math.Clamp(now - lastTime, 0, .1); lastTime = now;
-        if (settings.EnableTunnel) phase += dt * .16f * settings.Strength;
+        if (settings.EnableTunnel) phase = (phase + dt * .4f) % 1;
         var cursor = PointToClient(Cursor.Position);
         var wanted = settings.EnableParallax ? new Vector2((cursor.X - Width / 2f) / Math.Max(1, Width), (cursor.Y - Height / 2f) / Math.Max(1, Height)) * settings.ParallaxStrength * .06f : Vector2.Zero;
         pointer = Vector2.Lerp(pointer, wanted, 1 - MathF.Exp(-dt * 7));
-        var input = settings.CaptureAudio ? audio.Bands : new float[64];
+        var input = audio.Bands;
         float smoothing = 1 - MathF.Exp(-dt / Math.Max(.015f, settings.Smoothing));
-        for (int i = 0; i < 64; i++) spectrum[i] += (input[i] - spectrum[i]) * smoothing;
-        Invalidate();
+        for (int i = 0; i < spectrum.Length; i++) spectrum[i] += ((settings.CaptureAudio ? input[i] : 0) - spectrum[i]) * smoothing;
+        PresentFrame();
     }
     protected override void OnPaint(PaintEventArgs e)
     {
         if (!settings.Enabled || systemPaused || covered || hasMusicSession && artwork is null) return;
+        BuildFrame();
+        if (renderer is not null)
+        {
+            try
+            {
+                renderer.Resize((int)(Width * settings.RenderScale), (int)(Height * settings.RenderScale));
+                renderer.Render(scene.Vertices); return;
+            }
+            catch { DropRenderer(); }
+        }
+        RenderCompatibility(e.Graphics);
+    }
+    private void PresentFrame()
+    {
+        if (!Visible || systemPaused || covered) return;
+        if (renderer is null)
+        {
+            BuildFrame();
+            if (softwareFrame is null || softwareFrame.Width != Width || softwareFrame.Height != Height)
+            {
+                softwareFrame?.Dispose(); softwareFrame = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
+            }
+            using (var buffer = Graphics.FromImage(softwareFrame)) RenderCompatibility(buffer);
+            using (var target = Graphics.FromHwnd(Handle)) target.DrawImageUnscaled(softwareFrame, 0, 0);
+            return;
+        }
+        try
+        {
+            BuildFrame();
+            renderer.Resize((int)(Width * settings.RenderScale), (int)(Height * settings.RenderScale));
+            renderer.Render(scene.Vertices);
+        }
+        catch { DropRenderer(); Invalidate(); }
+    }
+    private void BuildFrame(bool still = false)
+    {
         if (artwork is not null && (backdrop is null || appliedBlur != settings.BackgroundBlur))
         {
             backdrop?.Dispose(); backdrop = BackdropImage.Create(artwork, settings.BackgroundBlur); appliedBlur = settings.BackgroundBlur;
@@ -154,51 +237,40 @@ internal sealed class WallpaperForm : Form
                 settings.NoSessionMode.HasImage() && artwork is not null, settings.NoSessionMode.HasClock() && caption is not null, settings.ClockStyle, region);
         else
         {
-        float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);
-        scene.Build(new(Width, Height, phase, new(settings.PositionX + pointer.X, settings.PositionY + pointer.Y),
-            settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
-            settings.VisualizerMode.HasCircle(),
-            settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary, settings.BarThickness, settings.ShowTrackInfo && caption is not null), spectrum, region);
+            float bottomY = Math.Clamp((screen.WorkingArea.Bottom - screen.Bounds.Top) / (float)Math.Max(1, Height) - settings.BottomMargin, .2f, .98f);
+            var offset = still ? Vector2.Zero : pointer;
+            scene.Build(new(Width, Height, still ? 0 : phase, new(settings.PositionX + offset.X, settings.PositionY + offset.Y),
+                settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
+                settings.VisualizerMode.HasCircle(),
+                settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary, settings.BarThickness,
+                settings.ShowTrackInfo && caption is not null, settings.CircleBarHeight, settings.BottomBarHeight),
+                still ? [] : spectrum, region);
         }
-        if (renderer is not null)
+    }
+    public Bitmap? CreateWindowsWallpaper()
+    {
+        if (artwork is null || !hasMusicSession || Width < 1 || Height < 1) return null;
+        BuildFrame(still: true);
+        var image = new Bitmap(Width, Height, PixelFormat.Format32bppRgb);
+        try
         {
-            try
-            {
-                renderer.Resize((int)(Width * settings.RenderScale), (int)(Height * settings.RenderScale));
-                renderer.Render(scene.Vertices); return;
-            }
-            catch { DropRenderer(); }
+            using var graphics = Graphics.FromImage(image);
+            RenderCompatibility(graphics);
+            return image;
         }
-        RenderCompatibility(e.Graphics);
+        catch
+        {
+            image.Dispose();
+            throw;
+        }
     }
     private void RenderCompatibility(Graphics g)
     {
-        g.Clear(Color.FromArgb(8, 8, 12)); g.InterpolationMode = InterpolationMode.Bilinear;
-        var vertices = scene.Vertices;
-        PointF Pixel(Vector2 p) => new((p.X + 1) * Width / 2, (1 - p.Y) * Height / 2);
-        for (int i = 0; i + 5 < vertices.Length; i += 6)
-        {
-            var a = vertices[i]; var b = vertices[i + 1]; var c = vertices[i + 2]; var d = vertices[i + 5];
-            if (a.Textured > .5f)
-            {
-                var image = a.Textured > 2.5f ? backdrop : a.Textured > 1.5f ? caption : artwork;
-                if (image is null) continue;
-                using var attr = new ImageAttributes(); attr.SetColorMatrix(new ColorMatrix
-                { Matrix00 = a.Color.X, Matrix11 = a.Color.Y, Matrix22 = a.Color.Z, Matrix33 = a.Color.W, Matrix44 = 1 });
-                g.DrawImage(image, [Pixel(a.Position), Pixel(b.Position), Pixel(d.Position)], new RectangleF(0, 0, image.Width, image.Height), GraphicsUnit.Pixel, attr);
-            }
-            else
-            {
-                var v = Vector4.Clamp(a.Color, Vector4.Zero, Vector4.One);
-                Color ColorOf(Vector4 color) => Color.FromArgb((int)(color.W * 255), (int)(color.X * 255), (int)(color.Y * 255), (int)(color.Z * 255));
-                var p1 = Pixel((a.Position + b.Position) / 2); var p2 = Pixel((c.Position + d.Position) / 2);
-                using Brush brush = a.Color == c.Color ? new SolidBrush(ColorOf(v)) : new LinearGradientBrush(p1, p2, ColorOf(v), ColorOf(Vector4.Clamp(c.Color, Vector4.Zero, Vector4.One)));
-                g.FillPolygon(brush, [Pixel(a.Position), Pixel(b.Position), Pixel(c.Position), Pixel(d.Position)]);
-            }
-        }
+        g.Clear(Color.FromArgb(8, 8, 12));
+        SoftwareSceneRenderer.Draw(g, ClientRectangle, scene.Vertices, artwork, backdrop, caption);
     }
     private void DropRenderer() { renderer?.Dispose(); renderer = null; DoubleBuffered = true; }
     private static Vector4 ToVector(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f, 1);
     protected override void Dispose(bool disposing)
-    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); caption?.Dispose(); backdrop?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
+    { if (disposing) { timer.Dispose(); artwork?.Dispose(); brightnessSample?.Dispose(); caption?.Dispose(); backdrop?.Dispose(); softwareFrame?.Dispose(); DropRenderer(); } base.Dispose(disposing); }
 }
