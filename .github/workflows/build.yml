@@ -117,12 +117,21 @@ jobs:
           set -euo pipefail
           test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
           tag="private-build-42803499255"
-          test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
-          gh release edit "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" --draft --prerelease
+          if [[ "$GITHUB_REF_NAME" == "main" && "$GITHUB_EVENT_HEAD_COMMIT_MESSAGE" == *"[v2]"* ]]; then
+            tag="v2"
+            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = false
+          else
+            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
+            gh release edit "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" --draft --prerelease
+          fi
           gh release upload "$tag" --repo TKGHyper42/EQ-Visualizer --clobber \
             downloads/EQVisualizer-win-x64.exe downloads/EQVisualizer-win-x86.exe \
             downloads/EQVisualizer-win-x64.zip downloads/EQVisualizer-win-x86.zip downloads/SHA256SUMS.txt
           gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft,isPrerelease,url,tagName,assets
           test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
-          test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
+          if [[ "$tag" == "v2" ]]; then
+            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = false
+          else
+            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
+          fi
 
