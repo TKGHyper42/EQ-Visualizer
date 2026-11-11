@@ -20,6 +20,11 @@ static byte[] Tone(int bits,bool floating,float frequency,int channels=2)
 var peaks=new List<int>();
 Check(MediaSourceIdentity.Matches("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!SpotifyLauncher", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "Spotify keeps its selection when the player publishes a launcher identity");
 Check(!MediaSourceIdentity.Matches("AnotherPackage!Spotify", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "A different package cannot replace the selected music player");
+Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: true), "A brief pause keeps the cover");
+Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: false), "A retained paused session gives way to the clock");
+Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Playing, pauseGrace: false), "Resume replaces the clock with the track");
+Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Stopped, pauseGrace: true), "Stop shows the clock immediately");
+Check(IdleMode.Off.ShowTrack(PlaybackActivity.Paused, pauseGrace: false), "Pause still keeps the cover when the idle scene is off");
 foreach(var format in new[]{(16,false),(24,false),(32,false),(32,true)})
 {
     var a=new AudioAnalyzer();var tone=Tone(format.Item1,format.Item2,1000);

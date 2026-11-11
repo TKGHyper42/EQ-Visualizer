@@ -53,6 +53,7 @@ internal sealed class WallpaperForm : Form
     }
     public void RefreshState(bool repaint = false)
     {
+        bool wasCovered = covered;
         covered = DesktopHost.IsCovered(screen.Bounds);
         bool idleClock = !hasMusicSession && settings.NoSessionMode.HasClock();
         bool idleImage = !hasMusicSession && settings.NoSessionMode.HasImage() && artwork is not null;
@@ -63,7 +64,11 @@ internal sealed class WallpaperForm : Form
         timer.Interval = idleClock ? 15000 : Math.Max(8, 1000 / settings.Fps);
         bool animate = show && !covered && (idleClock || hasMusicSession && isPlaying);
         if (timer.Enabled != animate) { timer.Enabled = animate; lastTime = clock.Elapsed.TotalSeconds; }
-        if (show && !covered && (repaint || changed)) PresentFrame();
+        if (show && !covered && (repaint || changed || wasCovered))
+        {
+            if (idleClock) UpdateClock();
+            PresentFrame();
+        }
     }
     public void SetSystemPaused(bool paused) { systemPaused = paused; RefreshState(); }
     public void SetPlaybackState(bool playing)
@@ -116,17 +121,18 @@ internal sealed class WallpaperForm : Form
         graphics.DrawString("Sin portada", font, brush, new RectangleF(0, 0, 256, 256), format);
         return image;
     }
-    private void UpdateClock()
+    private bool UpdateClock()
     {
-        if (hasMusicSession || !settings.NoSessionMode.HasClock()) return;
+        if (hasMusicSession || !settings.NoSessionMode.HasClock()) return false;
         string next = DateTime.Now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + settings.ClockStyle;
-        if (next == clockText) return;
+        if (next == clockText) return false;
         clockText = next;
         caption?.Dispose();
         var accent = artwork is null ? Ui.Accent : Color.FromArgb(
             (int)(Math.Clamp(primary.X, 0, 1) * 255), (int)(Math.Clamp(primary.Y, 0, 1) * 255), (int)(Math.Clamp(primary.Z, 0, 1) * 255));
         caption = ClockFace.Create(DateTime.Now, settings.ClockStyle, accent);
         try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
+        return true;
     }
     public void SetShades(Rectangle[] rectangles)
     {
@@ -160,7 +166,11 @@ internal sealed class WallpaperForm : Form
     protected override void OnPaintBackground(PaintEventArgs e) { }
     private void TickFrame()
     {
-        if (!hasMusicSession) { UpdateClock(); Invalidate(); return; }
+        if (!hasMusicSession)
+        {
+            if (UpdateClock()) PresentFrame();
+            return;
+        }
         double now = clock.Elapsed.TotalSeconds;
         float dt = (float)Math.Clamp(now - lastTime, 0, .1); lastTime = now;
         if (settings.EnableTunnel) phase = (phase + dt * .4f) % 1;

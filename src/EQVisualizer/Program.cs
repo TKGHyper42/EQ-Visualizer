@@ -101,6 +101,10 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly HotkeyWindow hotkey = new();
     private readonly ToolStripMenuItem sourceMenu = new("Reproductor");
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 500 };
+    private readonly System.Windows.Forms.Timer pauseTimer = new() { Interval = 600 };
+    private NowPlayingChangedEventArgs? currentTrack;
+    private PlaybackActivity activity;
+    private bool showingTrack;
     private readonly DesktopIconContrast iconContrast = new();
     private readonly ToolStripMenuItem deviceMenu = new("Salida de audio (mezcla completa)");
     private readonly ToolStripMenuItem captureSourceMenu = new("Capturar sonido de");
@@ -193,12 +197,13 @@ internal sealed class WallpaperContext : ApplicationContext
             if (openSettings.WaitOne(0)) ShowSettings();
         };
         recoveryTimer.Start();
+        pauseTimer.Tick += (_, _) => { pauseTimer.Stop(); RefreshMediaPresentation(); };
         CreateWallpapers();
         media.Changed += OnMediaChanged;
         media.PlaybackChanged += (_, e) =>
         {
-            foreach (var form in forms) form.SetPlaybackState(e.IsPlaying);
-            audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
+            SetMediaActivity(e.Activity);
+            RefreshMediaPresentation();
         };
         media.SessionsChanged += OnSessionsChanged;
         _ = media.StartAsync(settings.MediaSourceId);
@@ -223,7 +228,14 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnDisplayChanged(object? sender, EventArgs e)
     {
         if (exiting || forms.Count == 0) return;
-        forms[0].BeginInvoke(() => { foreach (var f in forms) f.Dispose(); forms.Clear(); CreateWallpapers(); _ = media.SelectSourceAsync(settings.MediaSourceId); });
+        forms[0].BeginInvoke(() =>
+        {
+            if (exiting) return;
+            foreach (var form in forms) form.Dispose();
+            forms.Clear();
+            CreateWallpapers();
+            RefreshMediaPresentation(trackChanged: true);
+        });
     }
     private void RefreshDevices()
     {
@@ -341,13 +353,43 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnMediaChanged(object? sender, NowPlayingChangedEventArgs e)
     {
         if (exiting) { e.Artwork?.Dispose(); return; }
-        string label = string.IsNullOrWhiteSpace(e.Title) ? "EQ Visualizer" :
-            string.IsNullOrWhiteSpace(e.Artist) ? e.Title : $"{e.Title} — {e.Artist}";
-        tray.Text = label.Length > 63 ? label[..63] : label;
-        using var artwork = e.Artwork;
-        foreach (var form in forms) form.SetNowPlaying(artwork, e.IsPlaying, e.Title, e.Artist, e.HasSession);
+        currentTrack?.Artwork?.Dispose();
+        currentTrack = e.HasSession ? e : null;
+        if (currentTrack is null) e.Artwork?.Dispose();
+        SetMediaActivity(e.Activity);
+        RefreshMediaPresentation(trackChanged: true);
+    }
+
+    private void SetMediaActivity(PlaybackActivity next)
+    {
+        if (activity == next) return;
+        activity = next;
+        pauseTimer.Stop();
+        if (activity == PlaybackActivity.Paused) pauseTimer.Start();
+    }
+
+    private bool RefreshMediaPresentation(bool trackChanged = false)
+    {
+        var track = settings.NoSessionMode.ShowTrack(activity, pauseTimer.Enabled) ? currentTrack : null;
+        bool showTrack = track is not null;
+        bool replaceScene = showingTrack != showTrack || trackChanged && showTrack;
+        bool playing = activity == PlaybackActivity.Playing;
+        if (replaceScene)
+        {
+            showingTrack = showTrack;
+            foreach (var form in forms)
+                form.SetNowPlaying(track?.Artwork, playing, track?.Title ?? "", track?.Artist ?? "", showTrack);
+            string label = string.IsNullOrWhiteSpace(track?.Title) ? "EQ Visualizer" :
+                string.IsNullOrWhiteSpace(track.Artist) ? track.Title : $"{track.Title} — {track.Artist}";
+            tray.Text = label.Length > 63 ? label[..63] : label;
+        }
+        else if (showTrack)
+        {
+            foreach (var form in forms) form.SetPlaybackState(playing);
+        }
         audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
-        UpdateWindowsWallpaper();
+        if (replaceScene || trackChanged) UpdateWindowsWallpaper();
+        return replaceScene;
     }
 
     private void Toggle()
@@ -453,7 +495,7 @@ internal sealed class WallpaperContext : ApplicationContext
             if (previousRenderer != settings.UseGdiRenderer) form.ConfigureRenderer();
             form.RefreshIdleOptions();
         }
-        UpdateWindowsWallpaper();
+        if (!RefreshMediaPresentation()) UpdateWindowsWallpaper();
     }
 
     private void CreateDesktopShortcut()
@@ -507,11 +549,13 @@ internal sealed class WallpaperContext : ApplicationContext
         exiting = true;
         recoveryTimer.Stop();
         recoveryTimer.Dispose();
+        pauseTimer.Dispose();
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         hotkey.Dispose();
         media.Dispose();
+        currentTrack?.Artwork?.Dispose();
         WindowsWallpaper.Restore();
         foreach (var f in forms) { f.Close(); f.Dispose(); }
         audio.Dispose();
