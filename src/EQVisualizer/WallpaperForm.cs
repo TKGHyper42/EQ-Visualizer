@@ -47,7 +47,7 @@ internal sealed class WallpaperForm : Form
         get
         {
             var parameters = base.CreateParams;
-            parameters.ExStyle |= 0x08000000 | 0x00000080; // NOACTIVATE | TOOLWINDOW
+            parameters.ExStyle |= 0x08000000 | 0x00000080 | 0x00000020; // NOACTIVATE | TOOLWINDOW | TRANSPARENT
             return parameters;
         }
     }
@@ -163,6 +163,12 @@ internal sealed class WallpaperForm : Form
         if (renderer is not null) DoubleBuffered = false;
     }
     protected override void OnHandleDestroyed(EventArgs e) { DropRenderer(); base.OnHandleDestroyed(e); }
+    protected override void WndProc(ref Message message)
+    {
+        if (message.Msg == 0x0084) { message.Result = new IntPtr(-1); return; } // HTTRANSPARENT
+        if (message.Msg == 0x0021) { message.Result = new IntPtr(4); return; } // MA_NOACTIVATEANDEAT
+        base.WndProc(ref message);
+    }
     protected override void OnPaintBackground(PaintEventArgs e) { }
     private void TickFrame()
     {
@@ -243,7 +249,10 @@ internal sealed class WallpaperForm : Form
                 settings.CoverSize, settings.Strength, settings.Sensitivity, settings.EnableTunnel,
                 settings.VisualizerMode.HasCircle(),
                 settings.VisualizerMode.HasBottom(), bottomY, settings.QualityLayers, primary, secondary, settings.BarThickness,
-                settings.ShowTrackInfo && caption is not null, settings.CircleBarHeight, settings.BottomBarHeight),
+                settings.ShowTrackInfo && caption is not null, settings.CircleBarHeight, settings.BottomBarHeight,
+                 new BarAppearance(settings.CircleBarHeight, settings.CircleBarThickness, settings.CircleBarOpacity, settings.CircleBarRounded),
+                 new BarAppearance(settings.BottomBarHeight, settings.BottomBarThickness, settings.BottomBarOpacity, settings.BottomBarRounded),
+                 settings.BottomBarWidth),
                 still ? [] : spectrum, region);
         }
     }
