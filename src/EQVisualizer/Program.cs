@@ -80,6 +80,13 @@ internal sealed class Settings
     public float BarThickness { get; set; } = 1.6f;
     public float CircleBarHeight { get; set; } = 1;
     public float BottomBarHeight { get; set; } = 1;
+    public float CircleBarThickness { get; set; } = 1.6f;
+    public float BottomBarThickness { get; set; } = 1.6f;
+    public float CircleBarOpacity { get; set; } = 1f;
+    public float BottomBarOpacity { get; set; } = 1f;
+    public bool CircleBarRounded { get; set; }
+    public bool BottomBarRounded { get; set; }
+    public float BottomBarWidth { get; set; } = .52f;
     public float BackgroundBlur { get; set; } = 35;
     public InterfaceTheme InterfaceTheme { get; set; } = InterfaceTheme.Carbon;
     public int InterfaceAccent { get; set; }
@@ -119,7 +126,16 @@ internal sealed class WallpaperContext : ApplicationContext
     public WallpaperContext(EventWaitHandle openSettings)
     {
         this.openSettings = openSettings;
-        try { settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(settingsPath)) ?? new(); }
+        try
+        {
+            string json = File.ReadAllText(settingsPath);
+            settings = JsonSerializer.Deserialize<Settings>(json) ?? new();
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty(nameof(Settings.CircleBarThickness), out _))
+                settings.CircleBarThickness = settings.BarThickness;
+            if (!document.RootElement.TryGetProperty(nameof(Settings.BottomBarThickness), out _))
+                settings.BottomBarThickness = settings.BarThickness;
+        }
         catch { settings = new(); }
         settings.Fps = Math.Clamp(settings.Fps, 30, 120);
         settings.Strength = Math.Clamp(settings.Strength, 0, 3);
@@ -132,8 +148,13 @@ internal sealed class WallpaperContext : ApplicationContext
         settings.PositionY = Math.Clamp(settings.PositionY, .1f, .9f);
         settings.QualityLayers = Math.Clamp(settings.QualityLayers, 3, 12);
         settings.BarThickness = Math.Clamp(settings.BarThickness, .5f, 3);
-        settings.CircleBarHeight = Math.Clamp(settings.CircleBarHeight, .5f, 2);
-        settings.BottomBarHeight = Math.Clamp(settings.BottomBarHeight, .5f, 2);
+        settings.CircleBarHeight = Math.Clamp(settings.CircleBarHeight, .5f, 3);
+        settings.BottomBarHeight = Math.Clamp(settings.BottomBarHeight, .5f, 6);
+        settings.CircleBarThickness = Math.Clamp(settings.CircleBarThickness, .5f, 3);
+        settings.BottomBarThickness = Math.Clamp(settings.BottomBarThickness, .5f, 3);
+        settings.CircleBarOpacity = Math.Clamp(settings.CircleBarOpacity, 0, 1);
+        settings.BottomBarOpacity = Math.Clamp(settings.BottomBarOpacity, 0, 1);
+        settings.BottomBarWidth = Math.Clamp(settings.BottomBarWidth, .25f, 1);
         settings.BackgroundBlur = Math.Clamp(settings.BackgroundBlur, 0, 100);
         settings.InterfaceOpacity = Math.Clamp(settings.InterfaceOpacity, 80, 100);
         if (!Enum.IsDefined(settings.VisualizerMode)) settings.VisualizerMode = VisualizerMode.Both;
@@ -145,6 +166,7 @@ internal sealed class WallpaperContext : ApplicationContext
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
+        menu.Items.Add("Abrir bienvenida...", null, (_, _) => ShowWelcome(force: true));
         menu.Items.Add("Crear acceso directo en el escritorio", null, (_, _) => CreateDesktopShortcut());
         var modeMenu = new ToolStripMenuItem("Visualizador");
         foreach (var mode in VisualizerModes.All)
@@ -317,16 +339,19 @@ internal sealed class WallpaperContext : ApplicationContext
         audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, pid, startTicks);
     }
 
-    private void ShowWelcomeIfNeeded()
+    private void ShowWelcomeIfNeeded() => ShowWelcome(force: false);
+
+    private void ShowWelcome(bool force)
     {
-        if (settings.HasCompletedWelcome) return;
+        if (settings.HasCompletedWelcome && !force) return;
         using var welcome = new WelcomeForm(settings);
-        if (welcome.ShowDialog() == DialogResult.OK)
-        {
-            settings.HasCompletedWelcome = true;
-            Save();
-            foreach (var form in forms) form.Invalidate();
-        }
+        if (welcome.ShowDialog() != DialogResult.OK) return;
+        settings.Enabled = true;
+        settings.HasCompletedWelcome = true;
+        Save();
+        RefreshMediaPresentation(trackChanged: true);
+        foreach (var form in forms) form.RefreshState(true);
+        UpdateWindowsWallpaper();
     }
 
     private void OnSessionsChanged(object? sender, MediaSessionsChangedEventArgs e)
@@ -479,7 +504,12 @@ internal sealed class WallpaperContext : ApplicationContext
         DialogResult result;
         try { result = window.ShowDialog(); }
         finally { activeSettings = null; }
-        if (result != DialogResult.OK) return;
+        if (result != DialogResult.OK)
+        {
+            Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
+            if (tray.ContextMenuStrip is { } cancelledMenu) UiMenuRenderer.ApplyTo(cancelledMenu);
+            return;
+        }
         if (!hotkey.Configure(settings))
         {
             (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
@@ -489,7 +519,7 @@ internal sealed class WallpaperContext : ApplicationContext
         Save();
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         Application.SetColorMode(settings.InterfaceTheme.IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
-        if (tray.ContextMenuStrip is { } menu) { menu.BackColor = Ui.Surface; menu.ForeColor = Ui.Text; menu.Invalidate(true); }
+        if (tray.ContextMenuStrip is { } menu) UiMenuRenderer.ApplyTo(menu);
         foreach (var form in forms)
         {
             if (previousRenderer != settings.UseGdiRenderer) form.ConfigureRenderer();
@@ -522,7 +552,12 @@ internal sealed class WallpaperContext : ApplicationContext
     }
 
     private void SetFps(int fps) { settings.Fps = fps; Save(); foreach (var f in forms) f.RefreshState(); }
-    private void SetStrength(float strength) { settings.Strength = Math.Clamp(strength, 0, 3); Save(); }
+    private void SetStrength(float strength)
+    {
+        settings.Strength = Math.Clamp(strength, 0, 3);
+        Save();
+        foreach (var form in forms) form.RefreshState(true);
+    }
     private void SetDevice(string? id)
     {
         string? previous = settings.AudioDeviceId;
