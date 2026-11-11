@@ -11,14 +11,16 @@ internal struct GpuVertex
     public float Textured;
 }
 internal readonly record struct ShadeRegion(float X, float Y, float Width, float Height, float Opacity = .68f);
+internal readonly record struct BarAppearance(float Height, float Thickness, float Opacity, bool Rounded);
 internal readonly record struct SceneOptions(float Width, float Height, float Phase,
     Vector2 Center, float CoverSize, float Intensity, float Sensitivity, bool Tunnel,
     bool Ring, bool Bottom, float BottomY, int Layers, Vector4 Primary, Vector4 Secondary,
-    float BarThickness = 1.6f, bool ShowTrackInfo = false, float CircleBarHeight = 1, float BottomBarHeight = 1);
+    float BarThickness = 1.6f, bool ShowTrackInfo = false, float CircleBarHeight = 1, float BottomBarHeight = 1,
+    BarAppearance? CircleAppearance = null, BarAppearance? BottomAppearance = null, float BottomWidth = .52f);
 
-// UVs refer only to the artwork supplied by the current Windows music session.
 internal sealed class VisualScene
 {
+    internal const float RoundedBar = 6;
     private static readonly Vector2[] tunnelOutline = Enumerable.Range(0, 32)
         .Select(index => MathF.Tau * index / 32)
         .Select(angle => new Vector2(MathF.Cos(angle), MathF.Sin(angle)))
@@ -77,39 +79,88 @@ internal sealed class VisualScene
         int artworkStart = count;
         Quad(cx, cy, cover, cover, Vector4.One, true);
         if (o.Ring) for (int i = artworkStart; i < count; i++) vertices[i].Textured = 4;
+
+        var circle = ResolveAppearance(o.CircleAppearance, o.CircleBarHeight, o.BarThickness, 3);
+        var bottom = ResolveAppearance(o.BottomAppearance, o.BottomBarHeight, o.BarThickness, 6);
+        bool drawCircle = o.Ring && circle.Opacity > 0 && !spectrum.IsEmpty;
+        bool drawBottom = o.Bottom && bottom.Opacity > 0;
         float intensity = Math.Clamp(o.Intensity, 0, 3);
-        float barScale = intensity / (1 + intensity) * (4f / 3);
+        float barScale = intensity <= 1 ? intensity / (1 + intensity) * (4f / 3) : 2f / 3 + (intensity - 1) * .32f;
+        float sensitivity = Math.Max(0, o.Sensitivity);
+        float sensitivityBoost = Math.Max(0, sensitivity - 1);
+
+        float stripWidth = width * Math.Clamp(o.BottomWidth, .25f, 1);
+        float stripLeft = (width - stripWidth) / 2;
+        float pitch = stripWidth / Math.Max(1, spectrum.Length);
+        float fillRatio = bottom.Thickness <= 1.6f ? .55f * bottom.Thickness : .88f + (bottom.Thickness - 1.6f) / 14;
+        float bottomThickness = pitch * fillRatio;
+        float bottomOutline = Math.Min(bottomThickness + 1, pitch * .99f);
+        float bottomAnchor = Math.Clamp(height * o.BottomY, .5f, height - .5f);
+        float extraBottomHeight = Math.Max(0, bottom.Height - 1);
+        float bottomPeak = unit * .038f * barScale * (bottom.Height + .25f * extraBottomHeight * extraBottomHeight);
+
+        var center = new Vector2(cx, cy);
+        float circleRadius = cover / 2 + 5;
+        float circleThickness = Math.Max(2, unit * .0035f) * circle.Thickness;
+        float circlePeak = unit * .022f * barScale * circle.Height;
+        float captionWidth = unit * .55f, captionHeight = captionWidth / 8, captionGap = unit * .014f;
+        float captionTop = cy + cover / 2 + captionGap;
+        bool captionAbove = false;
+        if (o.ShowTrackInfo)
+        {
+            float extent = cover / 2;
+            if (drawCircle)
+            {
+                // Reserve space for the loudest bar, including the outline's outer corners.
+                extent = new Vector2(circleRadius + 1.5f + circlePeak, (circleThickness + 1) / 2).Length();
+            }
+            captionAbove = cy + extent + captionGap + captionHeight > height && cy > height / 2;
+            captionTop = captionAbove ? cy - extent - captionGap - captionHeight : cy + extent + captionGap;
+            captionTop = Math.Clamp(captionTop, 0, height - captionHeight);
+        }
+
         for (int i = 0; i < spectrum.Length; i++)
         {
-            float signal = Math.Clamp(spectrum[i] * o.Sensitivity, 0, 1);
+            float band = Math.Clamp(spectrum[i], 0, 1);
+            // Boost quiet bands while keeping loud bands distinct at high sensitivity.
+            float signal = band * sensitivity / (1 + band * sensitivityBoost);
             var color = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1)); color.W = .7f;
             var tip = Vector4.Lerp(color, o.Secondary, .65f); tip.W = .85f;
-            if (o.Bottom)
+            if (drawBottom && bottomAnchor > .5f)
             {
-                float bw = width * .52f, h = 1 + signal * unit * .038f * barScale * o.BottomBarHeight;
-                float x = width * .24f + (i + .5f) * bw / spectrum.Length, y = height * o.BottomY - h / 2, w = bw / spectrum.Length * Math.Clamp(.55f * o.BarThickness, .2f, .94f);
-                Quad(x, y, w + 1, h + 1, new(0, 0, 0, .25f), false);
-                int first = count; Quad(x, y, w, h, color, false);
-                vertices[first].Color = tip; vertices[first + 1].Color = tip; vertices[first + 3].Color = tip;
+                float length = 1 + signal * bottomPeak;
+                float halfRoom = (bottomAnchor - .5f) / 2;
+                // Compress peaks smoothly as they approach the viewport edge.
+                if (length > halfRoom)
+                {
+                    float excess = length - halfRoom;
+                    length = halfRoom + halfRoom * excess / (halfRoom + excess);
+                }
+                var start = new Vector2(stripLeft + (i + .5f) * pitch, bottomAnchor - length);
+                DrawBar(start, Vector2.UnitY, length, bottomThickness, bottomOutline, tip, color, bottom);
             }
-            if (o.Ring)
+            if (drawCircle)
             {
-                float angle = MathF.Tau * i / Math.Max(1, spectrum.Length) - MathF.PI / 2, radius = cover * .5f + 5;
+                float angle = MathF.Tau * i / spectrum.Length - MathF.PI / 2;
                 var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-                var start = new Vector2(cx, cy) + direction * radius;
-                var end = start + direction * (1 + signal * unit * .022f * barScale * o.CircleBarHeight);
-                float thickness = Math.Max(2, unit * .0035f) * o.BarThickness;
-                Line(start, end, thickness + 1, new(0, 0, 0, .25f));
-                int first = count; Line(start, end, thickness, color);
-                vertices[first + 2].Color = tip; vertices[first + 4].Color = tip; vertices[first + 5].Color = tip;
+                var start = center + direction * circleRadius;
+                float length = 1 + signal * circlePeak;
+                float towardCaption = captionAbove ? -direction.Y : direction.Y;
+                if (o.ShowTrackInfo && towardCaption > 0)
+                {
+                    float room = captionAbove ? start.Y - captionTop - captionHeight : captionTop - start.Y;
+                    float outlineSide = MathF.Abs(direction.X) * (circleThickness + 1) / 2;
+                    length = Math.Min(length, (room - captionGap - outlineSide) / towardCaption - .5f);
+                }
+                if (length > 0)
+                    DrawBar(start, direction, length, circleThickness, circleThickness + 1, color, tip, circle);
             }
         }
         if (o.ShowTrackInfo)
         {
-            float w = unit * .55f, h = w / 8;
-            float ringClearance = o.Ring ? 6 + unit * .022f * barScale * o.CircleBarHeight : 0;
+            float captionX = Math.Clamp(cx, captionWidth / 2, width - captionWidth / 2);
             int first = count;
-            Quad(cx, cy + cover / 2 + ringClearance + unit * .014f + h / 2, w, h, Vector4.One, true);
+            Quad(captionX, captionTop + captionHeight / 2, captionWidth, captionHeight, Vector4.One, true);
             for (int i = first; i < count; i++) vertices[i].Textured = 2;
         }
         foreach (var r in shades) Quad(r.X + r.Width / 2, r.Y + r.Height / 2, r.Width, r.Height, new(0, 0, 0, r.Opacity), false);
@@ -145,12 +196,35 @@ internal sealed class VisualScene
             }
         }
     }
-    private GpuVertex Vertex(Vector2 p, Vector2 uv, Vector4 color, bool textured) => new()
+    private static BarAppearance ResolveAppearance(BarAppearance? appearance, float height, float thickness, float maxHeight)
+    {
+        var style = appearance ?? new(height, thickness, 1, false);
+        return new(Math.Clamp(style.Height, .5f, maxHeight), Math.Clamp(style.Thickness, .5f, 3),
+            Math.Clamp(style.Opacity, 0, 1), style.Rounded);
+    }
+    private void DrawBar(Vector2 start, Vector2 direction, float length, float thickness, float outlineThickness,
+        Vector4 startColor, Vector4 endColor, BarAppearance style)
+    {
+        if (count + 12 > vertices.Length) return;
+        float shape = style.Rounded ? RoundedBar : 0;
+        var end = start + direction * length;
+        var across = new Vector2(direction.Y, -direction.X);
+        var side = across * thickness / 2;
+        var outlineSide = across * outlineThickness / 2;
+        var outlineStart = start - direction * .5f;
+        var outlineEnd = end + direction * .5f;
+        var outline = new Vector4(0, 0, 0, .25f * style.Opacity);
+        Add(outlineStart - outlineSide, outlineStart + outlineSide, outlineEnd + outlineSide, outlineEnd - outlineSide,
+            outline, outline, shape);
+        Add(start - side, start + side, end + side, end - side,
+            startColor with { W = startColor.W * style.Opacity }, endColor with { W = endColor.W * style.Opacity }, shape);
+    }
+    private GpuVertex Vertex(Vector2 p, Vector2 uv, Vector4 color, float texture) => new()
     {
         Position = new(p.X / width * 2 - 1, 1 - p.Y / height * 2),
         Uv = uv,
         Color = color,
-        Textured = textured ? 1 : 0
+        Textured = texture
     };
     private void Quad(float cx, float cy, float w, float h, Vector4 color, bool textured)
     {
@@ -161,11 +235,13 @@ internal sealed class VisualScene
         var diff = b - a; var side = new Vector2(-diff.Y, diff.X) / Math.Max(.001f, diff.Length()) * thickness / 2;
         Add(a - side, a + side, b + side, b - side, color, false);
     }
-    private void Add(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector4 color, bool textured)
+    private void Add(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector4 color, bool textured) =>
+        Add(a, b, c, d, color, color, textured ? 1 : 0);
+    private void Add(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector4 startColor, Vector4 endColor, float texture)
     {
         if (count + 6 > vertices.Length) return;
-        vertices[count++] = Vertex(a, new(0, 0), color, textured); vertices[count++] = Vertex(b, new(1, 0), color, textured);
-        vertices[count++] = Vertex(c, new(1, 1), color, textured); vertices[count++] = Vertex(a, new(0, 0), color, textured);
-        vertices[count++] = Vertex(c, new(1, 1), color, textured); vertices[count++] = Vertex(d, new(0, 1), color, textured);
+        vertices[count++] = Vertex(a, new(0, 0), startColor, texture); vertices[count++] = Vertex(b, new(1, 0), startColor, texture);
+        vertices[count++] = Vertex(c, new(1, 1), endColor, texture); vertices[count++] = Vertex(a, new(0, 0), startColor, texture);
+        vertices[count++] = Vertex(c, new(1, 1), endColor, texture); vertices[count++] = Vertex(d, new(0, 1), endColor, texture);
     }
 }

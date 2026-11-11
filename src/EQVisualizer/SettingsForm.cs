@@ -9,6 +9,8 @@ internal sealed class SettingsForm : ModernForm
     private readonly CheckBox parallax = new UiToggle() { Text = "Seguir suavemente el cursor", AutoSize = false };
     private readonly CheckBox trackInfo = new UiToggle() { Text = "Título y artista", AutoSize = false };
     private readonly CheckBox softwareRenderer = new UiToggle() { Text = "Usar GDI+ (compatibilidad)", AutoSize = false };
+    private readonly CheckBox circleRounded = new UiToggle() { Text = "Extremos redondeados", AutoSize = false };
+    private readonly CheckBox bottomRounded = new UiToggle() { Text = "Extremos redondeados", AutoSize = false };
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
@@ -103,7 +105,7 @@ internal sealed class SettingsForm : ModernForm
             {
                 selectedAccent = InterfacePalettes.EnsureAccent(picker.Color,
                     InterfacePalettes.For((InterfaceTheme)interfaceTheme.SelectedIndex).Surface);
-                customAccent = true; UpdatePreview();
+                customAccent = true; ApplyLiveTheme();
             }
         };
         Slider(interfacePage, "Opacidad de Ajustes (%)", "opacity", settings.InterfaceOpacity, 80, 100, 5);
@@ -118,9 +120,15 @@ internal sealed class SettingsForm : ModernForm
         Slider(audio, "Sensibilidad", "sensitivity", settings.Sensitivity, .1m, 5, .1m);
         Slider(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
         Slider(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
-        Slider(audio, "Altura del círculo (%)", "circleHeight", settings.CircleBarHeight * 100, 50, 200, 5);
-        Slider(audio, "Altura de la franja (%)", "bottomHeight", settings.BottomBarHeight * 100, 50, 200, 5);
-        Slider(audio, "Grosor de barras (%)", "thickness", settings.BarThickness * 100, 50, 300, 10);
+        Slider(audio, "Circuito · altura (%)", "circleHeight", settings.CircleBarHeight * 100, 50, 300, 5);
+        Slider(audio, "Circuito · grosor (%)", "circleThickness", settings.CircleBarThickness * 100, 50, 300, 10);
+        Slider(audio, "Circuito · opacidad (%)", "circleOpacity", settings.CircleBarOpacity * 100, 0, 100, 5);
+        circleRounded.Checked = settings.CircleBarRounded; Row(audio, "Circuito · extremos", circleRounded);
+        Slider(audio, "Franja · altura (%)", "bottomHeight", settings.BottomBarHeight * 100, 50, 600, 5);
+        Slider(audio, "Franja · grosor (%)", "bottomThickness", settings.BottomBarThickness * 100, 50, 300, 10);
+        Slider(audio, "Franja · opacidad (%)", "bottomOpacity", settings.BottomBarOpacity * 100, 0, 100, 5);
+        bottomRounded.Checked = settings.BottomBarRounded; Row(audio, "Franja · extremos", bottomRounded);
+        Slider(audio, "Franja · anchura (%)", "bottomWidth", settings.BottomBarWidth * 100, 25, 100, 5);
         Hint(audio, "En la bandeja, Reproductor elige metadatos y Capturar sonido de elige mezcla o proceso aislado. El aislamiento requiere Windows build 20348+ y elegir el proceso de audio correcto; en Windows 10 habitual queda disponible la mezcla completa.");
         Hint(audio, "El audio solo se analiza en memoria: no se reproduce, graba ni transmite. Sin historial musical, telemetría ni cuentas de Spotify.");
 
@@ -157,13 +165,13 @@ internal sealed class SettingsForm : ModernForm
         interfaceTheme.SelectedIndexChanged += (_, _) =>
         {
             selectedAccent = InterfacePalettes.For((InterfaceTheme)interfaceTheme.SelectedIndex).Accent;
-            customAccent = false; UpdatePreview();
+            customAccent = false; ApplyLiveTheme();
         };
         preview.Dock = DockStyle.Fill;
         previewLayout.Controls.Add(preview, 0, 0);
         previewLayout.Controls.Add(previewBar, 0, 1);
         foreach (var slider in sliders.Values) slider.ValueChanged += (_, _) => UpdatePreview();
-        foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo }) box.CheckedChanged += (_, _) => UpdatePreview();
+        foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo, circleRounded, bottomRounded }) box.CheckedChanged += (_, _) => UpdatePreview();
         mode.SelectedIndexChanged += (_, _) => UpdatePreview();
         contrast.SelectedIndexChanged += (_, _) => UpdatePreview();
         UpdatePreview();
@@ -189,6 +197,15 @@ internal sealed class SettingsForm : ModernForm
         }
     }
     protected override void Dispose(bool disposing) { if (disposing) pageMotion?.Dispose(); base.Dispose(disposing); }
+    private void ApplyLiveTheme()
+    {
+        Ui.TrackCurrentThemeColors(this);
+        Ui.ApplyTheme((InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex),
+            customAccent ? selectedAccent.ToArgb() : 0);
+        Ui.RefreshColors(this);
+        UpdatePreview();
+    }
+
     private void UpdatePreview()
     {
         if (!sliders.ContainsKey("layers")) return;
@@ -196,11 +213,15 @@ internal sealed class SettingsForm : ModernForm
         themeSample.SetPalette((InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex), selectedAccent);
         preview.SetOptions(new PreviewOptions((VisualizerMode)Math.Max(0, mode.SelectedIndex),
             N("size") / 100, N("x") / 100, N("y") / 100, N("margin") / 100,
-            N("strength") / 100, N("sensitivity"), N("thickness") / 100, N("circleHeight") / 100, N("bottomHeight") / 100,
+            N("strength") / 100, N("sensitivity"), N("circleThickness") / 100, N("circleHeight") / 100, N("bottomHeight") / 100,
             (int)N("layers"), tunnel.Checked, trackInfo.Checked, N("blur"), selectedAccent,
             (ContrastMode)Math.Max(0, contrast.SelectedIndex), (IdleMode)Math.Max(0, idleMode.SelectedIndex),
             previewIdle.Checked, idlePath.Text, (InterfaceTheme)Math.Max(0, interfaceTheme.SelectedIndex),
-            (IdleClockStyle)Math.Max(0, clockStyle.SelectedIndex)));
+            (IdleClockStyle)Math.Max(0, clockStyle.SelectedIndex),
+            new BarAppearance(N("circleHeight") / 100, N("circleThickness") / 100,
+                N("circleOpacity") / 100, circleRounded.Checked),
+            new BarAppearance(N("bottomHeight") / 100, N("bottomThickness") / 100,
+                N("bottomOpacity") / 100, bottomRounded.Checked), N("bottomWidth") / 100));
         WindowOpacity = N("opacity") / 100d;
         if (IsHandleCreated) Opacity = WindowOpacity;
     }
@@ -258,9 +279,17 @@ internal sealed class SettingsForm : ModernForm
             { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }
             float N(string name) => (float)sliders[name].Value;
             settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
-            settings.ShowTrackInfo = trackInfo.Checked; settings.BarThickness = N("thickness") / 100;
+            settings.ShowTrackInfo = trackInfo.Checked;
             settings.CircleBarHeight = N("circleHeight") / 100;
             settings.BottomBarHeight = N("bottomHeight") / 100;
+            settings.CircleBarThickness = N("circleThickness") / 100;
+            settings.BottomBarThickness = N("bottomThickness") / 100;
+            settings.CircleBarOpacity = N("circleOpacity") / 100;
+            settings.BottomBarOpacity = N("bottomOpacity") / 100;
+            settings.CircleBarRounded = circleRounded.Checked;
+            settings.BottomBarRounded = bottomRounded.Checked;
+            settings.BottomBarWidth = N("bottomWidth") / 100;
+            settings.BarThickness = settings.CircleBarThickness; // Keep old setting for migration
             settings.BackgroundBlur = N("blur");
             settings.InterfaceTheme = (InterfaceTheme)interfaceTheme.SelectedIndex;
             settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
@@ -276,6 +305,8 @@ internal sealed class SettingsForm : ModernForm
             settings.HotkeyKey = (Keys)toggleKey.SelectedItem; settings.EffectsHotkeyKey = (Keys)effectsKey.SelectedItem;
             settings.HotkeyControl = ctrl.Checked; settings.HotkeyAlt = alt.Checked; settings.HotkeyShift = shift.Checked;
         }
+        if (!e.Cancel && DialogResult != DialogResult.OK)
+            Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         base.OnFormClosing(e);
     }
 }

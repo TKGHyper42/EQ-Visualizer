@@ -6,7 +6,8 @@ namespace EQVisualizer;
 internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverSize, float X, float Y,
     float Margin, float Strength, float Sensitivity, float Thickness, float CircleBarHeight, float BottomBarHeight, int Layers, bool Tunnel,
     bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
-    bool PreviewIdle, string? IdlePath, InterfaceTheme Theme, IdleClockStyle ClockStyle);
+    bool PreviewIdle, string? IdlePath, InterfaceTheme Theme, IdleClockStyle ClockStyle,
+    BarAppearance CircleAppearance = default, BarAppearance BottomAppearance = default, float BottomWidth = .52f);
 
 // Uses the same scene geometry as the wallpaper. The spectrum is deliberately simulated.
 internal sealed class SettingsPreview : Control
@@ -110,7 +111,8 @@ internal sealed class SettingsPreview : Control
             scene.Build(new SceneOptions(canvas.Width, canvas.Height, .3f, new(options.X, options.Y),
                 options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
                 options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,
-                primary, secondary, options.Thickness, options.TrackInfo, options.CircleBarHeight, options.BottomBarHeight), spectrum, shades);
+                primary, secondary, options.Thickness, options.TrackInfo, options.CircleBarHeight, options.BottomBarHeight,
+                 options.CircleAppearance, options.BottomAppearance, options.BottomWidth), spectrum, shades);
         }
         DrawScene(g, canvas, selectedArtwork);
         g.ResetClip();
