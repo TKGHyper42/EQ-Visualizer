@@ -178,6 +178,32 @@ internal static class SmokeTest
             welcome.DrawToBitmap(welcomeImage, new Rectangle(Point.Empty, welcomeImage.Size));
             welcomeImage.Save(Path.Combine(directory, "welcome.png"), System.Drawing.Imaging.ImageFormat.Png);
             welcome.Close();
+
+            // Regression: reopening Welcome must not lose the saved visualization
+            // mode, and accepting its choice must re-enable the live wallpaper.
+            Step("Checking Welcome replay and persistent visualizer choices");
+            foreach (var mode in VisualizerModes.All)
+            {
+                var preferences = new Settings { VisualizerMode = mode, Enabled = false, HasCompletedWelcome = true };
+                using var reopened = new WelcomeForm(preferences);
+                reopened.Show(); PumpAnimations();
+                var choices = FindWelcomeChoices(reopened).ToArray();
+                string expected = mode switch
+                {
+                    VisualizerMode.Circle => "Solo círculo",
+                    VisualizerMode.Bottom => "Solo franja inferior",
+                    _ => "Círculo y franja"
+                };
+                if (choices.Length != 3 || choices.Count(choice => choice.Checked) != 1 ||
+                    !string.Equals(choices.Single(choice => choice.Checked).Text, expected, StringComparison.Ordinal))
+                    throw new InvalidOperationException("Welcome did not restore the selected mode: " + mode);
+                reopened.AcceptButton!.PerformClick();
+                if (reopened.Visible) { reopened.DialogResult = DialogResult.OK; reopened.Close(); }
+                Application.DoEvents();
+                if (!preferences.Enabled || !preferences.HasCompletedWelcome ||
+                    preferences.VisualizerMode != mode)
+                    throw new InvalidOperationException("Welcome did not persist the selected mode: " + mode);
+            }
             File.WriteAllText(Path.Combine(directory, "smoke-result.txt"), "PASS: Direct3D, software wallpaper, blur, and settings controls. Renderer: " + (renderer.UsesSoftware ? "WARP" : "hardware") + ". Desktop integration and real audio not exercised.");
             Step("Completed");
             return 0;
@@ -189,6 +215,15 @@ internal static class SmokeTest
         var time = System.Diagnostics.Stopwatch.StartNew();
         while (time.ElapsedMilliseconds < 220) { Application.DoEvents(); Thread.Sleep(10); }
     }
+    private static IEnumerable<RadioButton> FindWelcomeChoices(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            if (child is WelcomeChoice choice) yield return choice;
+            foreach (var nested in FindWelcomeChoices(child)) yield return nested;
+        }
+    }
+
     private static SettingsPreview? FindPreview(Control parent)
     {
         foreach (Control child in parent.Controls)
