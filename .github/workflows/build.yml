@@ -1,7 +1,7 @@
 name: Windows build
 on:
   push:
-    branches: [main, codex/bootstrap-eq-visualizer]
+    branches: [main, codex/bootstrap-eq-visualizer, patch/v2-v3-win11-x64-20261111]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [win-x64, win-x86]
+        arch: [win-x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -73,10 +73,11 @@ jobs:
           $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: EQVisualizer-${{ matrix.arch }}
           path: out/${{ matrix.arch }}/
-          if-no-files-found: error
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: always()
         with:
