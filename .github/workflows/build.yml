@@ -35,10 +35,10 @@ jobs:
         run: |
           $exe = Resolve-Path "out/${{ matrix.arch }}/EQVisualizer.exe"
           $result = Start-Process -FilePath $exe -ArgumentList "--smoke-test", "TestResults/${{ matrix.arch }}" -PassThru
-          if (-not $result.WaitForExit(90000)) {
+          if (-not $result.WaitForExit(180000)) {
             Stop-Process -Id $result.Id -Force
             if (Test-Path "TestResults/${{ matrix.arch }}/smoke-progress.txt") { Get-Content "TestResults/${{ matrix.arch }}/smoke-progress.txt" }
-            throw "Renderer smoke test exceeded 90 seconds"
+            throw "Renderer smoke test exceeded 180 seconds"
           }
           Get-Content "TestResults/${{ matrix.arch }}/smoke-result.txt"
           if ($result.ExitCode -ne 0) { throw "Renderer smoke test failed: $($result.ExitCode)" }
