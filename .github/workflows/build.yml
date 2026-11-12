@@ -13,6 +13,8 @@ env:
   DOTNET_NOLOGO: '1'
 jobs:
   build:
+    permissions:
+      contents: write # Required for an explicitly requested private draft download.
     runs-on: windows-latest
     timeout-minutes: 15
     strategy:
@@ -72,18 +74,43 @@ jobs:
           }
           $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
+      # Do not consume artifact storage for ordinary development commits.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && contains(github.event.head_commit.message, '[private-build]'))
         with:
           name: EQVisualizer-${{ matrix.arch }}
           path: out/${{ matrix.arch }}/
-          if-no-files-found: warn
+          retention-days: 1
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: checks-${{ matrix.arch }}
           path: TestResults/${{ matrix.arch }}/
+          retention-days: 1
           if-no-files-found: warn
+      - name: Deliver EQ preview as a private draft (explicit only)
+        if: (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deliver-eq]')) && github.event.repository.private
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/${{ github.repository }} --jq .private)" = "true"
+          test -f "out/${{ matrix.arch }}/EQVisualizer.exe"
+          (cd "out/${{ matrix.arch }}" && tr -d '\r' < SHA256.txt | sha256sum --check --strict)
+          tag="eq-private-preview"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            test "$(gh release view "$tag" --repo "${{ github.repository }}" --json isDraft --jq .isDraft)" = "true"
+            gh release edit "$tag" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --draft --prerelease
+          else
+            gh release create "$tag" --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
+              --title "EQ Visualizer - private preview" --notes "Internal Windows build. Not a public release." \
+              --draft --prerelease
+          fi
+          gh release upload "$tag" --repo "${{ github.repository }}" --clobber \
+            "out/${{ matrix.arch }}/EQVisualizer.exe" "out/${{ matrix.arch }}/SHA256.txt"
+          gh release view "$tag" --repo "${{ github.repository }}" --json isDraft,assets,url
 
   # Private V2 uploads run only from the tagged main build.
   private-assets:
