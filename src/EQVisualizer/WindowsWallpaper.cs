@@ -10,6 +10,7 @@ internal static class WindowsWallpaper
 {
     private const uint SetDesktopWallpaper = 0x0014;
     private const uint UpdateUserProfile = 0x0001;
+    private const uint SendChange = 0x0002;
     private static readonly string directory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EQVisualizer");
     private static readonly string wallpaperPath = Path.Combine(directory, "music-wallpaper.png");
@@ -62,11 +63,11 @@ internal static class WindowsWallpaper
             {
                 if (version != Volatile.Read(ref generation)) return;
                 // Leave any wallpaper the user applied while EQ Visualizer was open.
-                if (File.Exists(backupPath) && IsOurs(CurrentWallpaper()))
-                {
-                    string original = File.ReadAllText(backupPath);
-                    if (!IsOurs(original)) SetWallpaper(original);
-                }
+                string? saved = File.Exists(backupPath) ? File.ReadAllText(backupPath) : null;
+                using var history = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers");
+                var candidates = Enumerable.Range(0, 5).Select(i => history?.GetValue($"BackgroundHistoryPath{i}") as string ?? "").ToArray();
+                string? original = WallpaperRecovery.Choose(CurrentWallpaper(), wallpaperPath, saved, candidates, File.Exists);
+                if (original is not null) SetWallpaper(original);
                 if (File.Exists(wallpaperPath) && !IsOurs(CurrentWallpaper())) File.Delete(wallpaperPath);
             }
             catch (Exception error) { Trace.TraceWarning("EQ Visualizer wallpaper: {0}", error.Message); }
@@ -84,7 +85,7 @@ internal static class WindowsWallpaper
 
     private static void SetWallpaper(string path)
     {
-        if (!SystemParametersInfo(SetDesktopWallpaper, 0, path, UpdateUserProfile))
+        if (!SystemParametersInfo(SetDesktopWallpaper, 0, path, UpdateUserProfile | SendChange))
             throw new Win32Exception(Marshal.GetLastPInvokeError());
     }
 

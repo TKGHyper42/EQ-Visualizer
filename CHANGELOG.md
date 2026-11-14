@@ -6,6 +6,8 @@
 
 ## 2026-11-13 — Correcciones locales de transiciones y Ajustes
 
+- La escena de espera se muestra inmediatamente al pausar. Si falta la ruta guardada del fondo, la restauración intenta recuperar una imagen existente del historial de Windows solo mientras EQ sigue siendo el fondo activo; los cambios del usuario se respetan.
+
 - La primera ejecución muestra Bienvenida antes de crear y adjuntar el wallpaper a Explorer. Bienvenida ahora aparece con el icono de EQ en la barra de tareas, evitando que quede oculta detrás de otras ventanas mientras el render está pausado por una ventana maximizada. WindowsReview cubre la presencia en la barra y el orden de arranque.
 
 - El menú Debug de la bandeja muestra FPS de presentación, estado y renderizador por monitor, además de CPU y RAM del proceso. Las muestras se actualizan cada segundo mientras el panel está abierto.

@@ -9,5 +9,5 @@ internal static class IdleModes
     public static bool HasImage(this IdleMode mode) => mode is IdleMode.Image or IdleMode.ImageAndClock;
     public static bool ShowTrack(this IdleMode mode, PlaybackActivity activity, bool pauseGrace) =>
         activity == PlaybackActivity.Playing ||
-        activity == PlaybackActivity.Paused && (pauseGrace || mode == IdleMode.Off);
+        activity == PlaybackActivity.Paused && mode == IdleMode.Off;
 }

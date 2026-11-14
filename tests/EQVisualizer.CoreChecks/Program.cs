@@ -18,9 +18,13 @@ static byte[] Tone(int bits,bool floating,float frequency,int channels=2)
     return bytes;
 }
 var peaks=new List<int>();
+Check(WallpaperRecovery.Choose("eq.png", "eq.png", null, ["eq.png", "missing.png", "original.png"], p => p != "missing.png") == "original.png", "Recover previous wallpaper from history if backup is missing");
+Check(WallpaperRecovery.Choose("user.png", "eq.png", "original.png", ["original.png"], _ => true) is null, "Preserve a wallpaper changed by the user");
+Check(WallpaperRecovery.Choose("eq.png", "eq.png", "original.png", ["other.png"], _ => true) == "original.png", "Prefer saved wallpaper over history");
+Check(WallpaperRecovery.Choose("eq.png", "eq.png", "", ["other.png"], _ => true) == "", "Restore an explicitly saved solid background");
 Check(MediaSourceIdentity.Matches("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!SpotifyLauncher", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "Spotify keeps its selection when the player publishes a launcher identity");
 Check(!MediaSourceIdentity.Matches("AnotherPackage!Spotify", "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify"), "A different package cannot replace the selected music player");
-Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: true), "A brief pause keeps the cover");
+Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: true), "Pausing immediately shows the idle scene");
 Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Paused, pauseGrace: false), "A retained paused session gives way to the clock");
 Check(IdleMode.Clock.ShowTrack(PlaybackActivity.Playing, pauseGrace: false), "Resume replaces the clock with the track");
 Check(!IdleMode.Clock.ShowTrack(PlaybackActivity.Stopped, pauseGrace: true), "Stop shows the clock immediately");
