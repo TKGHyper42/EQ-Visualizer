@@ -6,96 +6,100 @@
 
 **Wallpaper musical para Windows 11 x64**
 
+[Características](#características) · [Personalización](#personalización) · [Primeros pasos](#primeros-pasos) · [Compatibilidad](COMPATIBILITY.md)
+
 </div>
 
 ![Concepto visual de EQ Visualizer en tonos melocotón y lila](assets/eq-visualizer-hero.png)
 
-<p align="center"><sub>Ilustración conceptual. EQ usa la portada y la paleta de la canción activa para construir el fondo.</sub></p>
+<p align="center"><sub>Ilustración conceptual. La apariencia del fondo se adapta a la portada y a la paleta de la canción activa.</sub></p>
 
----
+## Un escritorio que acompaña tu música
 
-## Qué es
+EQ Visualizer transforma el fondo de Windows en una escena musical con portada, título, artista y barras que reaccionan al sonido. Los colores de cada canción dan forma al ambiente, con desenfoque, profundidad y movimiento configurables.
 
-EQ Visualizer convierte la sesión multimedia que Windows expone de una aplicación compatible en un wallpaper animado real. La portada, el título y el artista aparecen detrás de los iconos del escritorio, mientras las barras reaccionan al audio que eliges analizar.
+Su motor de escritorio integra la escena detrás de los iconos de Windows. Desde una composición discreta alrededor de la portada hasta una franja que recorre la pantalla, EQ permite adaptar el visualizador al espacio de trabajo.
 
-No es una ventana flotante ni depende de Lively. EQ integra su propio motor de escritorio con WorkerW, aplica su imagen de fondo en Windows y restaura tu fondo anterior al salir.
+> **En desarrollo:** la versión actual está en validación previa a 1.0.0. Consulta los requisitos y el alcance de compatibilidad antes de utilizarla.
 
-## Funciones principales
+## Características
 
-- **Portada, canción y artista.** Obtiene los metadatos de las sesiones multimedia de Windows, por ejemplo de YouTube en Chrome o Spotify cuando la aplicación los publica.
-- **Barras con la paleta de la portada.** El degradado se calcula con los colores dominantes de cada portada. Puedes usar **solo círculo**, **solo franja inferior** o ambos.
-- **Tamaño independiente.** Ajusta por separado la altura de las barras circulares y de la franja, de 50 % a 200 %, además de su grosor.
-- **Fondo con profundidad.** El desenfoque conserva la portada y el texto nítidos. El efecto de túnel usa anillos en perspectiva coloreados por la portada, sin repetir la carátula.
-- **Modo sin música.** Al pausar durante aproximadamente 600 ms, muestra un reloj digital o analógico, una imagen local, ambos, o conserva la portada. Al cerrar o detener una sesión, el cambio se realiza al recibir el evento de Windows.
-- **Audio automático o elegido.** Selecciona automáticamente una sesión, una sesión concreta, la mezcla completa de salida o un proceso aislado. Los metadatos y la fuente de audio se configuran de forma independiente.
-- **Controles de escritorio.** Icono de bandeja, acceso directo a Ajustes, minimizar, maximizar, restaurar y cerrar. No se crea una ventana nueva cuando cambia la canción.
-- **Compatibilidad con RivaTuner.** Puedes cambiar a GDI+ para evitar que el renderizado Direct3D sea detectado como juego.
+- **Tu música en primer plano.** Portada, título y artista a partir de las sesiones multimedia compatibles de Windows, como las de Spotify o YouTube en un navegador que publique esa información.
+- **Dos estilos de visualizador.** Barras circulares alrededor de la portada, franja inferior o ambos estilos a la vez.
+- **Colores que acompañan cada canción.** Degradados basados en la portada, con modos de paleta, paleta invertida, puntas claras y color sólido, además de intensidad ajustable.
+- **Profundidad y movimiento.** Túnel de anillos en perspectiva, paralaje del cursor y desenfoque del fondo, conservando la portada y el texto nítidos.
+- **Un fondo también para las pausas.** Reloj digital o analógico, imagen local, combinación de ambos o conservación de la portada cuando no hay música.
+- **Control desde la bandeja.** Acceso a Ajustes, selección de reproductor, fuente de audio y modos del visualizador.
+- **Rendimiento configurable.** Límite de FPS, escala interna y motor Direct3D 11 con alternativa GDI+ de compatibilidad.
+- **Diagnóstico en tiempo real.** El panel Debug muestra FPS, estado y motor por monitor, junto con el uso de CPU y memoria del proceso.
 
-## Instalación
+## Personalización
 
-### Ejecutable portátil
+Cada estilo de barras tiene controles independientes para ajustar la composición.
 
-Descarga **`EQVisualizer-win-x64.exe`** desde [Releases](https://github.com/TKGHyper42/EQ-Visualizer/releases), guárdalo en la carpeta donde quieras conservar EQ y ejecútalo. El `.exe` es autocontenido: no requiere el ZIP ni una instalación adicional de .NET.
-
-El archivo **`EQVisualizer-win-x64.zip`** es una alternativa que incluye el mismo ejecutable, la documentación y las licencias. El archivo **`SHA256SUMS.txt`** permite comprobar su integridad. El ejecutable requiere **Windows 11 x64**.
-
-Consulta [COMPATIBILITY.md](COMPATIBILITY.md) para conocer requisitos, límites de la captura aislada y compatibilidad de aplicaciones.
-
-## Uso rápido
-
-1. Abre `EQVisualizer-win-x64.exe`. En Bienvenida elige círculo, franja o ambos.
-2. Reproduce música o un video musical en una aplicación que comparta su sesión con Windows.
-3. Haz doble clic en el icono de EQ junto al reloj de Windows para abrir **Ajustes**.
-4. En **Portada**, activa la información de la canción y elige qué aparece cuando no hay música.
-5. En **Audio**, configura la fuente, sensibilidad, grosor y la altura independiente de cada estilo de barras.
-6. En **Movimiento**, activa el túnel y ajusta el desenfoque del fondo. Pulsa **Guardar cambios** para aplicarlos al escritorio.
-
-El menú del icono de bandeja permite cambiar el visualizador, elegir el reproductor, seleccionar la fuente de audio, ver el estado y crear un acceso directo de escritorio que abre Ajustes en la instancia existente.
-
-## Audio y detección multimedia
-
-EQ usa dos sistemas separados:
-
-| Para… | Usa… |
+| Elemento | Opciones |
 | --- | --- |
-| Portada, título y artista | **Reproductor**: sesiones multimedia que Windows comparte |
-| Movimiento de las barras | **Capturar sonido de**: mezcla de salida o proceso aislado |
-
-El modo **Automático** elige una sesión musical disponible. En modo de mezcla, las barras reaccionan a todo lo que suene en la salida seleccionada. En modo de proceso, eliges manualmente una aplicación de audio para aislarla. El aislamiento por proceso requiere Windows build 20348 o posterior y no se selecciona automáticamente porque una sesión multimedia no expone de forma fiable el proceso de audio correspondiente.
-
-Algunas aplicaciones no publican título, artista o portada a Windows. En esos casos EQ muestra lo que la sesión sí proporcione y mantiene el visualizador según la fuente de audio elegida.
-
-## Ajustes destacados
-
-| Sección | Ajustes |
-| --- | --- |
-| **Portada** | Tamaño y posición, título y artista, reloj, imagen local y comportamiento sin música |
-| **Audio** | Fuente de captura, sensibilidad, suavizado, grosor, altura del círculo y altura de la franja |
-| **Movimiento** | Túnel, paralaje, fuerza del movimiento y desenfoque de fondo |
-| **Rendimiento** | FPS, escala interna, capas y motor GDI+ de compatibilidad |
+| **Visualizador circular** | Altura, grosor, opacidad y extremos redondos o cuadrados |
+| **Franja inferior** | Altura, grosor, opacidad, extremos y anchura sobre la pantalla |
+| **Color de las barras** | Modo de degradado e intensidad |
+| **Portada** | Tamaño y posición |
+| **Título y artista** | Opacidad del recuadro independiente del texto y sombra opcional |
+| **Fondo** | Desenfoque, túnel y paralaje |
+| **Modo sin música** | Reloj digital o analógico, imagen local y comportamiento durante las pausas |
 | **Interfaz** | Temas claros y oscuros, color de acento y transparencia |
 
-Los controles numéricos usan sliders y admiten un valor exacto junto al deslizador. La vista previa usa una señal simulada y te permite comprobar los cambios antes de guardar.
+Los deslizadores permiten afinar los valores y comprobar la composición en una vista previa. **Guardar cambios** aplica los ajustes y mantiene la ventana abierta para continuar personalizando. La vista previa utiliza una señal simulada; el fondo utiliza la fuente de audio seleccionada.
 
-## Rendimiento, iconos y pantalla completa
+## Requisitos
 
-EQ deja el visualizador detrás de los iconos y consulta su posición para aplicar contraste local cuando Windows lo permite. Si otra ventana maximizada o a pantalla completa cubre un monitor, pausa el renderizado y la captura de esa pantalla para evitar consumo innecesario. La reproducción de música no se pausa.
+- **Windows 11 x64.** Es la única plataforma de soporte de esta versión.
+- Una salida de audio disponible para el análisis del sonido.
+- Una aplicación que comparta su sesión multimedia con Windows para mostrar portada, título y artista.
 
-Direct3D 11 se utiliza cuando está disponible. Si RivaTuner detecta EQ como juego, activa **Rendimiento → Motor gráfico → Usar GDI+ (compatibilidad)**. Este modo evita Direct3D, aunque puede usar más CPU según la resolución y el límite de FPS.
+El ejecutable autocontenido incluye el entorno .NET necesario. No requiere instalar un runtime adicional ni iniciar sesión en una cuenta de Spotify desde EQ.
+
+Los detalles sobre aplicaciones compatibles, captura de audio y limitaciones están en [Compatibilidad](COMPATIBILITY.md).
+
+## Primeros pasos
+
+1. Ejecuta EQ Visualizer desde la carpeta donde se encuentre la distribución portátil.
+2. En **Bienvenida**, elige visualizador circular, franja inferior o ambos.
+3. Reproduce música en una aplicación compatible.
+4. Abre **Ajustes** desde el icono de EQ en la bandeja de Windows y personaliza la escena.
+5. Pulsa **Guardar cambios** para aplicar la configuración al escritorio.
+
+El menú de bandeja reúne los controles del visualizador, la selección de audio y el panel **Debug**. La opción **Salir** cierra EQ y restaura el fondo anterior de Windows.
+
+## Audio y reproducción
+
+La información de la canción y el sonido que mueve las barras se seleccionan por separado:
+
+| Control | Función |
+| --- | --- |
+| **Reproductor** | Selecciona la sesión multimedia que aporta portada, título y artista |
+| **Capturar sonido de** | Selecciona la mezcla de salida o un proceso de audio concreto |
+| **Salida de audio** | Selecciona el dispositivo que se analiza en modo de mezcla |
+
+El modo automático de reproductor elige una sesión musical disponible. La captura de mezcla responde a los sonidos de la salida seleccionada; la captura por proceso permite elegir manualmente una aplicación. Cambiar el reproductor no cambia automáticamente el proceso de captura.
+
+La información disponible depende de cada aplicación: si una sesión no publica portada o artista, EQ solo puede mostrar los datos que Windows proporciona.
+
+## Rendimiento
+
+EQ incluye controles de FPS y resolución interna para adaptar el renderizado al equipo. La animación puede pausarse en los monitores cubiertos por una ventana maximizada o a pantalla completa, sin detener la música.
+
+Direct3D 11 es el motor principal. GDI+ ofrece una alternativa de compatibilidad que utiliza CPU; su consumo depende de la resolución y del límite de FPS. El panel **Debug** permite observar el rendimiento mientras se ajusta la configuración.
 
 ## Privacidad
 
-EQ analiza niveles de audio localmente para animar las barras. No graba canciones, no transmite audio, no requiere una cuenta de Spotify y no guarda historial musical. Los ajustes se guardan en `%LOCALAPPDATA%/EQVisualizer/settings.json` sin títulos, artistas, portadas ni muestras de audio.
+El análisis de audio se realiza localmente. EQ no graba canciones, no transmite audio y no guarda historial musical. Las preferencias se almacenan en el equipo, sin conservar títulos, artistas, portadas ni muestras de audio en el archivo de ajustes.
 
-## Salir y restaurar el fondo
+## Licencia
 
-Selecciona **Salir** en el icono de bandeja para cerrar EQ y restaurar el fondo de Windows que estaba activo antes de abrirlo. EQ no configura inicio automático ni requiere permisos de administrador.
-
----
+EQ Visualizer se distribuye bajo la [licencia MIT](LICENSE).
 
 <div align="center">
 
-Creado por **TKGHyper42** · [Licencia MIT](LICENSE)
+Creado por **TKGHyper42**
 
 </div>
-
