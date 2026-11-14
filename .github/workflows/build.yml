@@ -1,7 +1,7 @@
 name: Windows build
 on:
   push:
-    branches: [main, codex/bootstrap-eq-visualizer, patch/v2-v3-win11-x64-20261111]
+    branches: [main, codex/bootstrap-eq-visualizer, patch/v2-v3-win11-x64-20261111, release/v1.0.1-beta.1]
   workflow_dispatch:
 permissions:
   contents: read
@@ -74,6 +74,41 @@ jobs:
           }
           $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
+
+      - name: Publish prerelease only after all Windows checks pass
+        if: github.ref == 'refs/heads/release/v1.0.1-beta.1' && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v1.0.1-beta.1'
+          $repo = '${{ github.repository }}'
+          if ($repo -ne 'TKGHyper42/EQ-Visualizer') { throw "Unexpected release repository" }
+          gh release view $tag --repo $repo > $null 2> $null
+          if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists; refusing to overwrite assets" }
+          New-Item -ItemType Directory -Force 'dist' | Out-Null
+          Copy-Item 'out/${{ matrix.arch }}/EQVisualizer.exe' 'dist/EQVisualizer-win-x64.exe'
+          Compress-Archive -Path 'out/${{ matrix.arch }}/*' -DestinationPath 'dist/EQVisualizer-win-x64.zip'
+          @('EQVisualizer-win-x64.exe', 'EQVisualizer-win-x64.zip') | ForEach-Object {
+            $digest = (Get-FileHash -Path ("dist/" + $_) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$digest  $_"
+          } | Set-Content -Path 'dist/SHA256SUMS.txt' -Encoding ascii
+          $notes = @(
+            'Prerelease experimental de mantenimiento para Windows 11 x64.',
+            '',
+            'Cambios respecto a la beta pública: copia de seguridad de ajustes no legibles, agrupación de eventos de pantalla y validación de atajos globales.',
+            '',
+            'No incluye cambios en FFT, captura de audio ni recuperación de Direct3D.',
+            'Compilada tras CoreChecks, WindowsReview y smoke test del ejecutable en GitHub Actions.',
+            'Las pruebas con audio real, Explorador de Windows y varios monitores siguen pendientes. No sustituye automáticamente a la beta pública.',
+            '',
+            'Comprueba los archivos usando SHA256SUMS.txt antes de ejecutarlos.'
+          ) -join "`n"
+          gh release create $tag 'dist/EQVisualizer-win-x64.exe' 'dist/EQVisualizer-win-x64.zip' 'dist/SHA256SUMS.txt' --repo $repo --target $env:GITHUB_SHA --title 'EQ Visualizer v1.0.1-beta.1 (prerelease)' --notes $notes --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish prerelease" }
+          gh release view $tag --repo $repo --json tagName,isPrerelease,isDraft,url,assets
+          if ($LASTEXITCODE -ne 0) { throw "Failed to verify published prerelease" }
       # Do not consume artifact storage for ordinary development commits.
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && contains(github.event.head_commit.message, '[private-build]'))
