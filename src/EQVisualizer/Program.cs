@@ -618,9 +618,10 @@ internal sealed class WallpaperContext : ApplicationContext
     {
         if (!hotkey.Configure(settings))
         {
+            string reason = hotkey.Conflict ?? "Atajo ocupado.";
             (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
             hotkey.Configure(settings);
-            tray.ShowBalloonTip(4000, "EQ Visualizer", (hotkey.Conflict ?? "Atajo ocupado.") + " Se conservaron los atajos anteriores.", ToolTipIcon.Warning);
+            tray.ShowBalloonTip(4000, "EQ Visualizer", reason + " Se conservaron los atajos anteriores.", ToolTipIcon.Warning);
         }
         Save();
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
