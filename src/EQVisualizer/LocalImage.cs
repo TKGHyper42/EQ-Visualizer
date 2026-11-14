@@ -15,7 +15,8 @@ internal static class LocalImage
             var file = new FileInfo(path);
             if (!file.Exists || file.Length > 20 * 1024 * 1024) return null;
             using var source = Image.FromFile(file.FullName);
-            if (source.Width > 8192 || source.Height > 8192) return null;
+            if (source.Width > 8192 || source.Height > 8192 ||
+                (long)source.Width * source.Height > 16_777_216) return null;
             var result = new Bitmap(1024, 1024, PixelFormat.Format32bppArgb);
             try
             {

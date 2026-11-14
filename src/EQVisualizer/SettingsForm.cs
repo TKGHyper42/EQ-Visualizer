@@ -288,7 +288,7 @@ internal sealed class SettingsForm : ModernForm
     {
         if (((IdleMode)idleMode.SelectedIndex).HasImage() && !SettingsPreview.CanLoadImage(idlePath.Text))
         {
-            MessageBox.Show(this, "Selecciona una imagen PNG, JPG, JPEG o BMP válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música");
+            MessageBox.Show(this, "Selecciona una imagen PNG, JPG, JPEG o BMP válida de hasta 20 MB, 8192 píxeles por lado y 16 777 216 píxeles en total.", "Imagen sin música");
             return;
         }
         if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||

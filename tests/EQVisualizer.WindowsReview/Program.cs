@@ -222,6 +222,11 @@ internal static class Program
         var loader = Type("LocalImage").GetMethod("Load")!;
         using var valid = (Image?)loader.Invoke(null, [png]);
         if (valid is null) throw new InvalidOperationException("PNG image control failed.");
+        string largePng = Path.Combine(output, "image-pixel-limit.png");
+        using (var large = new Bitmap(4097, 4097)) large.Save(largePng, System.Drawing.Imaging.ImageFormat.Png);
+        using var tooLarge = (Image?)loader.Invoke(null, [largePng]);
+        if (tooLarge is not null)
+            throw new InvalidOperationException("Local images over 16,777,216 pixels must be rejected.");
         string webp = Path.Combine(output, "image-probe.webp");
         File.WriteAllBytes(webp, Convert.FromBase64String("UklGRiwAAABXRUJQVlA4ICAAAABQAQCdASoCAAIAAgA0JZAABAAAAP7khx/+N/fV5VFMAA=="));
         using var decoded = (Image?)loader.Invoke(null, [webp]);

@@ -1,5 +1,12 @@
 # EQ Visualizer — Bitácora técnica
 
+## 1.0.0-rc.2 — Auditoría para publicación pública
+
+- Las imágenes locales de espera ahora respetan el mismo límite de 16 777 216 píxeles que las portadas multimedia. Se conserva el límite de 20 MB y 8192 píxeles por lado; el selector explica los tres límites.
+- Regresión: una imagen PNG de 4097 × 4097 se rechazará en lugar de procesarse; las imágenes normales siguen cargándose.
+- La versión del ejecutable se alinea con la release 1.0.0-rc.2.
+- Continúa como candidata: no certifica las transiciones con reproducción real, RTSS, configuraciones multimonitor ni la restauración visual del fondo en todos los equipos.
+
 > Registro interno del desarrollo. La primera versión pública prevista es **1.0.0**; las denominaciones V2 y V3 son etapas internas, no lanzamientos públicos.
 >
 > **Estado actual:** híbrido V2+V3 en validación (2026-11-12). Este documento no equivale a una certificación de funcionamiento en una PC real.
