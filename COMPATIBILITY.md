@@ -4,10 +4,9 @@ El ejecutable incluye .NET 10 LTS. No requiere instalar Spotify, iniciar sesión
 
 | Sistema | Versión del ejecutable | Alcance |
 | --- | --- | --- |
-| Windows 11 | x64 | Objetivo principal; pendiente validar escritorio y audio en un equipo real |
-| Windows 10 1809, compilación 17763 o posterior | x64, x86 | Mínimo de las APIs de sesiones multimedia elegidas; soporte limitado y sin validación en hardware Windows 10 |
+| Windows 11 | x64 | Plataforma de soporte; pendiente completar la validación de escritorio y audio |
 
-El ciclo de soporte del runtime también depende de la edición y mantenimiento de Windows. El mínimo de una API no implica soporte vigente del sistema ni una garantía de funcionamiento. El artefacto x86 se comprueba bajo Windows x64 en CI; no equivale a una prueba en un equipo de 32 bits. Las ediciones N pueden necesitar Media Feature Pack. Windows ARM, OpenGL y Vulkan no están implementados ni validados.
+Las ediciones N de Windows 11 pueden necesitar Media Feature Pack.
 
 ## Elegir música y audio
 
@@ -15,7 +14,7 @@ En la bandeja, **Reproductor** permite elegir una sesión musical que Windows ex
 
 **Capturar sonido de** elige entre la mezcla completa y un proceso de audio concreto. En modo mezcla, **Salida de audio** elige el dispositivo: pueden reaccionar los efectos a sonidos de otras aplicaciones. En modo proceso, selecciona manualmente el PID de la aplicación de música; la salida elegida no interviene. **Reproductor** elige por separado título, artista y portada: cambiarlo no cambia automáticamente el PID de captura. Puedes desactivar el análisis en Ajustes → Audio. No se reproduce, registra en archivos ni transmite sonido; tampoco se guarda historial musical ni se incorpora telemetría.
 
-La captura aislada usa el loopback por proceso de Windows e incluye sus procesos hijos. Se habilita solo en build 20348 o posterior; Windows 10 de escritorio habitual llega a 19045 y dispone de la alternativa limitada de mezcla. No se cambia automáticamente a mezcla si falla la captura aislada: **Estado** muestra el error. El PID elegido dura solo esta ejecución para evitar reutilizar por error un identificador después de reiniciar. La identidad de una sesión multimedia no proporciona directamente un PID fiable de su árbol de audio; no se simula esa relación. Aún falta validar el aislamiento con una aplicación musical real y dos fuentes de sonido simultáneas.
+La captura aislada usa el loopback por proceso de Windows e incluye sus procesos hijos. Si falla, **Estado** muestra el error y puedes seleccionar la mezcla manualmente. El PID elegido dura solo esta ejecución para evitar reutilizar por error un identificador después de reiniciar. Una sesión multimedia no proporciona un PID fiable de su árbol de audio. Aún falta validar el aislamiento con una aplicación musical real y dos fuentes de sonido simultáneas.
 
 ## Ajustes y atajos
 
@@ -56,6 +55,6 @@ El límite inicial es 45 FPS. La escala interna parte de cada monitor. Direct3D 
 
 ## Qué se comprueba
 
-Las comprobaciones automáticas cubren formatos de muestras, bandas de frecuencia, geometría, publicación x64/x86, shaders integrados, carga y retirada de portada, dibujo, cambio de tamaño y lectura de píxeles en un runner Windows. Las imágenes sintéticas de esas pruebas no representan una sesión musical real. No prueban por sí solas Spotify, WorkerW, recuperación del Explorador, accesibilidad de iconos, bloqueo, suspensión, varios monitores ni FPS o consumo en hardware de usuario. Esas pruebas siguen pendientes antes de considerar una versión final.
+Las comprobaciones automáticas cubren formatos de muestras, bandas de frecuencia, geometría, compilación x64, shaders integrados, carga y retirada de portada, dibujo, cambio de tamaño y lectura de píxeles en un runner Windows. La validación en un equipo real todavía incluye Spotify, WorkerW, recuperación del Explorador, accesibilidad de iconos, bloqueo, suspensión, varios monitores, FPS y consumo.
 
 Referencias de compatibilidad: [sesiones multimedia](https://learn.microsoft.com/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager), [captura por proceso](https://learn.microsoft.com/windows/win32/api/audioclientactivationparams/ns-audioclientactivationparams-audioclient_activation_params), [.NET 10 y sistemas operativos](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md).

@@ -4,7 +4,7 @@
 
 ### Tu música. Tu portada. Un escritorio con vida.
 
-**Wallpaper musical para Windows 10 y Windows 11**
+**Wallpaper musical para Windows 11 x64**
 
 </div>
 
@@ -37,7 +37,7 @@ No es una ventana flotante ni depende de Lively. EQ integra su propio motor de e
 
 Descarga **`EQVisualizer-win-x64.exe`** desde [Releases](https://github.com/TKGHyper42/EQ-Visualizer/releases), guárdalo en la carpeta donde quieras conservar EQ y ejecútalo. El `.exe` es autocontenido: no requiere el ZIP ni una instalación adicional de .NET.
 
-El archivo **`EQVisualizer-win-x64.zip`** es una alternativa que incluye el mismo ejecutable, la documentación y las licencias. El archivo **`SHA256SUMS.txt`** permite comprobar su integridad. Usa **x64** en Windows 11 y Windows 10 de 64 bits. La versión x86 está dirigida a instalaciones de 32 bits con soporte limitado.
+El archivo **`EQVisualizer-win-x64.zip`** es una alternativa que incluye el mismo ejecutable, la documentación y las licencias. El archivo **`SHA256SUMS.txt`** permite comprobar su integridad. El ejecutable requiere **Windows 11 x64**.
 
 Consulta [COMPATIBILITY.md](COMPATIBILITY.md) para conocer requisitos, límites de la captura aislada y compatibilidad de aplicaciones.
 
