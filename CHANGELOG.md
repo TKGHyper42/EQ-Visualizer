@@ -1,5 +1,11 @@
 # EQ Visualizer — Bitácora técnica
 
+## 2026-11-14 — Primera beta pública (1.0.0)
+
+- Publicada la [release EQ-VisualizerV1](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/EQ-VisualizerV1) para Windows 11 x64, etiquetada como **beta**, con instalable autocontenido EXE y distribución ZIP.
+- Se incluyen [sumas SHA-256](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/SHA256SUMS.txt) para verificar los archivos distribuidos.
+- El repositorio es público. La compilación de Windows asociada al commit de publicación pasó GitHub Actions, pero faltan verificaciones interactivas con audio, Explorer y configuraciones de hardware reales. No constituye una certificación de estabilidad.
+
 ## 1.0.0-rc.2 — Auditoría para publicación pública
 
 - Las imágenes locales de espera ahora respetan el mismo límite de 16 777 216 píxeles que las portadas multimedia. Se conserva el límite de 20 MB y 8192 píxeles por lado; el selector explica los tres límites.
@@ -7,9 +13,9 @@
 - La versión del ejecutable se alinea con la release 1.0.0-rc.2.
 - Continúa como candidata: no certifica las transiciones con reproducción real, RTSS, configuraciones multimonitor ni la restauración visual del fondo en todos los equipos.
 
-> Registro interno del desarrollo. La primera versión pública prevista es **1.0.0**; las denominaciones V2 y V3 son etapas internas, no lanzamientos públicos.
+> Registro histórico del desarrollo previo a la beta pública **1.0.0** del 14 de noviembre de 2026; las denominaciones V2 y V3 son etapas internas, no lanzamientos públicos.
 >
-> **Estado actual:** híbrido V2+V3 en validación (2026-11-12). Este documento no equivale a una certificación de funcionamiento en una PC real.
+> **Estado de la revisión del 12 de noviembre:** híbrido V2+V3 en validación. Esta anotación histórica no equivale a una certificación de funcionamiento en una PC real.
 
 ## 2026-11-13 — Correcciones locales de transiciones y Ajustes
 
@@ -74,8 +80,8 @@
 
 ## Política de versiones y control de cambios
 
-- `main`: versión original conservada; no fusionar sin autorización.
-- `patch/v2-v3-win11-x64-20261111`: candidato interno; no crear ramas por auditoría o parche menores.
-- Versiones públicas: empezar por `1.0.0` **solo** tras aceptación funcional.
+- `main`: rama principal con el código de la beta pública; los cambios posteriores requieren revisión.
+- `patch/v2-v3-win11-x64-20261111`: rama histórica de integración; no crear ramas por auditorías o parches menores.
+- Versión pública actual: `1.0.0` beta. Una futura versión estable requiere aceptación funcional en equipos reales.
 - Registrar cada corrección futura con fecha, síntoma, causa, commit, prueba y resultado; distinguir claramente **verificado por CI**, **verificado en Windows real** y **pendiente**.
 - La app **TKG Backlog** presenta una copia de lectura de los hitos en `eq-visualizer-log.json` de su propio repositorio; actualizar ambas fuentes al registrar hitos nuevos.

@@ -20,7 +20,7 @@ EQ Visualizer transforma el fondo de Windows en una escena musical con portada, 
 
 Su motor de escritorio integra la escena detrás de los iconos de Windows. Desde una composición discreta alrededor de la portada hasta una franja que recorre la pantalla, EQ permite adaptar el visualizador al espacio de trabajo.
 
-> **Candidata pública 1.0.0-rc.2:** descarga el paquete portátil desde [Releases](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/1.0.0-rc.2). Consulta los requisitos y el alcance de compatibilidad antes de utilizarla; aún no es una versión estable certificada.
+> **Beta pública 1.0.0 (Windows 11 x64):** descarga el [EXE](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.exe) o el [ZIP portátil](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.zip). También están disponibles las [notas de la versión](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/EQ-VisualizerV1) y las [sumas SHA-256](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/SHA256SUMS.txt). Es una beta: consulta los requisitos y la compatibilidad antes de utilizarla; todavía no es una versión estable certificada.
 
 ## Características
 
