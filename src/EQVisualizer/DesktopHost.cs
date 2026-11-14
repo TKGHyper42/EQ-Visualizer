@@ -128,20 +128,40 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     public event EventHandler? ToggleRequested;
     public event EventHandler? EffectsRequested;
     public bool Registered { get; private set; }
+    public bool EffectsRegistered { get; private set; }
+    public string? Conflict { get; private set; }
+    public static bool IsAllowedKey(Keys key) => key >= Keys.A && key <= Keys.Z || key >= Keys.F1 && key <= Keys.F12;
 
     public HotkeyWindow() => CreateHandle(new CreateParams());
 
     public bool Configure(Settings settings)
     {
-        UnregisterHotKey(Handle, HotkeyId); UnregisterHotKey(Handle, HotkeyId + 1);
+        UnregisterHotKey(Handle, HotkeyId);
+        UnregisterHotKey(Handle, HotkeyId + 1);
+        Registered = EffectsRegistered = false;
+        Conflict = null;
         uint modifiers = 0;
         if (settings.HotkeyAlt) modifiers |= ModAlt;
         if (settings.HotkeyControl) modifiers |= ModControl;
         if (settings.HotkeyShift) modifiers |= ModShift;
+        if (modifiers == 0 || !IsAllowedKey(settings.HotkeyKey) || !IsAllowedKey(settings.EffectsHotkeyKey) ||
+            settings.HotkeyKey == settings.EffectsHotkeyKey)
+        {
+            Conflict = "Atajos inválidos: elige dos teclas distintas y al menos un modificador.";
+            return false;
+        }
         Registered = RegisterHotKey(Handle, HotkeyId, modifiers | 0x4000, (uint)settings.HotkeyKey);
-        bool effects = RegisterHotKey(Handle, HotkeyId + 1, modifiers | 0x4000, (uint)settings.EffectsHotkeyKey);
-        if (!effects || !Registered) { UnregisterHotKey(Handle, HotkeyId); UnregisterHotKey(Handle, HotkeyId + 1); Registered = false; }
-        return Registered;
+        EffectsRegistered = RegisterHotKey(Handle, HotkeyId + 1, modifiers | 0x4000, (uint)settings.EffectsHotkeyKey);
+        if (!Registered || !EffectsRegistered)
+        {
+            Conflict = "Atajo ocupado: " + (!Registered && !EffectsRegistered ? "ambos" : !Registered ? "activar/desactivar" : "movimiento") + ".";
+            // Do not leave partially registered shortcuts active.
+            UnregisterHotKey(Handle, HotkeyId);
+            UnregisterHotKey(Handle, HotkeyId + 1);
+            Registered = EffectsRegistered = false;
+            return false;
+        }
+        return true;
     }
 
     protected override void WndProc(ref Message message)
@@ -154,7 +174,7 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
 
     public void Dispose()
     {
-        if (Registered) UnregisterHotKey(Handle, HotkeyId);
+        UnregisterHotKey(Handle, HotkeyId);
         UnregisterHotKey(Handle, HotkeyId + 1);
         DestroyHandle();
     }
