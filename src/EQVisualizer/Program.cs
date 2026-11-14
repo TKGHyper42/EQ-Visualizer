@@ -48,6 +48,15 @@ internal static class Program
 
 internal enum ContrastMode { Adaptive, WholeImage, Off }
 
+internal static class StartupFlow
+{
+    public static void Initialize(bool needsWelcome, Action showWelcome, Action createWallpapers)
+    {
+        if (needsWelcome) showWelcome();
+        createWallpapers();
+    }
+}
+
 internal sealed class Settings
 {
     public int Fps { get; set; } = 45;
@@ -233,7 +242,7 @@ internal sealed class WallpaperContext : ApplicationContext
         };
         recoveryTimer.Start();
         pauseTimer.Tick += (_, _) => { pauseTimer.Stop(); RefreshMediaPresentation(); };
-        CreateWallpapers();
+        StartupFlow.Initialize(!settings.HasCompletedWelcome, ShowWelcomeIfNeeded, CreateWallpapers);
         media.Changed += OnMediaChanged;
         media.PlaybackChanged += (_, e) =>
         {
@@ -242,7 +251,6 @@ internal sealed class WallpaperContext : ApplicationContext
         };
         media.SessionsChanged += OnSessionsChanged;
         _ = media.StartAsync(settings.MediaSourceId);
-        if (forms.Count > 0) forms[0].BeginInvoke(ShowWelcomeIfNeeded);
     }
 
     private void CreateWallpapers()

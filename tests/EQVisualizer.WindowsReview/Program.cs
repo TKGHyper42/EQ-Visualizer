@@ -21,6 +21,8 @@ internal static class Program
         {
             CheckSmallRoundedBounds();
             CheckSettingsTaskbarIcon();
+            CheckWelcomeTaskbarPresence();
+            CheckFirstRunOrder();
             CheckMediaTransitions();
             CheckWallpaperRestoreQueue();
             CaptureSettings();
@@ -97,6 +99,31 @@ internal static class Program
             SendMessage(form.Handle, 0x7F, 0, 0) == 0)
             throw new InvalidOperationException("Settings must expose both native taskbar icons.");
         Observe("Settings taskbar icon", false, "Both native icon sizes available.");
+    }
+    private static void CheckWelcomeTaskbarPresence()
+    {
+        using var welcome = (Form)Activator.CreateInstance(Type("WelcomeForm"), [Settings()])!;
+        _ = welcome.Handle;
+        if (!welcome.ShowInTaskbar || SendMessage(welcome.Handle, 0x7F, 1, 0) == 0 ||
+            SendMessage(welcome.Handle, 0x7F, 0, 0) == 0)
+            throw new InvalidOperationException("First-run Welcome must be discoverable in the taskbar with the EQ icon.");
+        Observe("Welcome taskbar presence", false, "First-run Welcome is discoverable with both native icon sizes.");
+    }
+    private static void CheckFirstRunOrder()
+    {
+        var flow = Product.GetType("EQVisualizer.StartupFlow");
+        var initialize = flow?.GetMethod("Initialize", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (initialize is null)
+            throw new InvalidOperationException("First-run startup must coordinate Welcome before desktop attachment.");
+        var events = new List<string>();
+        initialize.Invoke(null, [true, (Action)(() => events.Add("welcome")), (Action)(() => events.Add("wallpaper"))]);
+        if (!events.SequenceEqual(["welcome", "wallpaper"]))
+            throw new InvalidOperationException("First-run Welcome must finish before the wallpaper is created.");
+        events.Clear();
+        initialize.Invoke(null, [false, (Action)(() => events.Add("welcome")), (Action)(() => events.Add("wallpaper"))]);
+        if (!events.SequenceEqual(["wallpaper"]))
+            throw new InvalidOperationException("Completed onboarding must create the wallpaper without reopening Welcome.");
+        Observe("First-run startup order", false, "Welcome finishes before desktop attachment and is skipped after onboarding.");
     }
     private static void CheckSmallRoundedBounds()
     {

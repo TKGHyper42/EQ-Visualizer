@@ -6,6 +6,8 @@
 
 ## 2026-11-13 — Correcciones locales de transiciones y Ajustes
 
+- La primera ejecución muestra Bienvenida antes de crear y adjuntar el wallpaper a Explorer. Bienvenida ahora aparece con el icono de EQ en la barra de tareas, evitando que quede oculta detrás de otras ventanas mientras el render está pausado por una ventana maximizada. WindowsReview cubre la presencia en la barra y el orden de arranque.
+
 - El menú Debug de la bandeja muestra FPS de presentación, estado y renderizador por monitor, además de CPU y RAM del proceso. Las muestras se actualizan cada segundo mientras el panel está abierto.
 
 - Se reutilizan direcciones de barras circulares y vértices compartidos al construir la escena. La comparación local produjo los mismos vértices con y sin túnel. CoreChecks y la prueba x64 con Direct3D por hardware pasaron.

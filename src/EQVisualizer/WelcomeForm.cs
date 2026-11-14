@@ -9,7 +9,7 @@ internal sealed class WelcomeForm : ModernForm
 
     public WelcomeForm(Settings settings) : base("EQ Visualizer / Bienvenida")
     {
-        this.settings = settings; ClientSize = new Size(800, 530); MinimumSize = MaximumSize = Size;
+        this.settings = settings; ClientSize = new Size(800, 530); MinimumSize = MaximumSize = Size; ShowInTaskbar = true;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(34, 24, 34, 26), ColumnCount = 1, RowCount = 5 };
         layout.RowStyles.Add(new(SizeType.Absolute, 36)); layout.RowStyles.Add(new(SizeType.Absolute, 65));
         layout.RowStyles.Add(new(SizeType.Absolute, 48)); layout.RowStyles.Add(new(SizeType.Percent, 100)); layout.RowStyles.Add(new(SizeType.Absolute, 64));
