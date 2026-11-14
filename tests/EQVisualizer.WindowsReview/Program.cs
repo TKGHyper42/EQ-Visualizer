@@ -19,6 +19,10 @@ internal static class Program
         output = args.Single(); Directory.CreateDirectory(output);
         try
         {
+            CheckSmallRoundedBounds();
+            CheckSettingsTaskbarIcon();
+            CheckMediaTransitions();
+            CheckWallpaperRestoreQueue();
             CaptureSettings();
             CheckIdlePreviewContrast();
             CheckImageFormats();
@@ -38,6 +42,76 @@ internal static class Program
     }
 
     private static Type Type(string name) => Product.GetType("EQVisualizer." + name, true)!;
+    private static void CheckMediaTransitions()
+    {
+        var activityType = Type("PlaybackActivity");
+        object playing = Enum.Parse(activityType, "Playing");
+        object paused = Enum.Parse(activityType, "Paused");
+        var resolver = Type("MediaSessionMonitor").GetMethod("ResolveActivity", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var statusType = resolver.GetParameters()[0].ParameterType;
+        foreach (var prior in new[] { playing, paused })
+        foreach (string transient in new[] { "Changing", "Opened" })
+            if (!Equals(resolver.Invoke(null, [Enum.Parse(statusType, transient), prior]), prior))
+                throw new InvalidOperationException("Transient playback status changed the presentation.");
+        using var first = new Bitmap(1, 1) { Tag = "same-cover" };
+        using var duplicate = new Bitmap(1, 1) { Tag = "same-cover" };
+        using var replacement = new Bitmap(1, 1) { Tag = "new-cover" };
+        object Track(string title, Image? cover, object activity) =>
+            Activator.CreateInstance(Type("NowPlayingChangedEventArgs"), [title, "Artist", cover, activity, true])!;
+        var track = Track("First", first, playing);
+        bool Same(object candidate) => (bool)Call(track, "SameTrack", candidate);
+        if (!Same(Track("First", duplicate, paused)) || Same(Track("Second", duplicate, playing)) ||
+            Same(Track("First", replacement, playing)) || Same(Track("First", null, playing)))
+            throw new InvalidOperationException("Track deduplication discarded a real change or repeated identical artwork.");
+        Observe("Media transitions", false, "Duplicate artwork, changed title/cover and transient playback states checked.");
+    }
+
+    private static void CheckWallpaperRestoreQueue()
+    {
+        var wallpaper = Type("WindowsWallpaper");
+        const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var gate = (SemaphoreSlim)wallpaper.GetField("gate", flags)!.GetValue(null)!;
+        var generation = wallpaper.GetField("generation", flags)!;
+        Task restore;
+        gate.Wait();
+        try
+        {
+            restore = (Task)wallpaper.GetMethod("RestoreAsync")!.Invoke(null, null)!;
+            // Supersede this request before releasing the gate, so this regression
+            // never changes the real desktop wallpaper.
+            generation.SetValue(null, (int)generation.GetValue(null)! + 1);
+            if (restore.IsCompleted) throw new InvalidOperationException("Restore bypassed the wallpaper queue.");
+        }
+        finally { gate.Release(); }
+        if (!restore.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Superseded restore did not finish.");
+        Observe("Wallpaper restore queue", false, "Restore returns while the writer is busy and discards superseded requests.");
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
+
+    private static void CheckSettingsTaskbarIcon()
+    {
+        using var form = SettingsWindow(Settings());
+        _ = form.Handle;
+        if (!form.ShowInTaskbar || SendMessage(form.Handle, 0x7F, 1, 0) == 0 ||
+            SendMessage(form.Handle, 0x7F, 0, 0) == 0)
+            throw new InvalidOperationException("Settings must expose both native taskbar icons.");
+        Observe("Settings taskbar icon", false, "Both native icon sizes available.");
+    }
+    private static void CheckSmallRoundedBounds()
+    {
+        var round = Type("Ui").GetMethod("Round")!;
+        foreach (var bounds in new[] { RectangleF.Empty, new RectangleF(0, 0, -1, 20),
+            new RectangleF(0, 0, 20, 0), new RectangleF(0, 0, 1, 1) })
+        {
+            using var path = (System.Drawing.Drawing2D.GraphicsPath)round.Invoke(null, [bounds, 14f])!;
+            if ((bounds.Width <= 0 || bounds.Height <= 0) && path.PointCount != 0)
+                throw new InvalidOperationException("Empty control bounds must have an empty path.");
+        }
+        using var square = (System.Drawing.Drawing2D.GraphicsPath)round.Invoke(null, [new RectangleF(0, 0, 20, 20), 0f])!;
+        if (square.PointCount == 0) throw new InvalidOperationException("Zero corner radius must draw a rectangle.");
+        Observe("Small rounded bounds", false, "Empty, negative, one-pixel and square bounds handled.");
+    }
     private static object Settings() => Activator.CreateInstance(Type("Settings"))!;
     private static void Set(object target, string name, object value) => target.GetType().GetProperty(name, Instance)!.SetValue(target, value);
     private static object Call(object target, string name, params object?[] values) => target.GetType().GetMethod(name, Instance)!.Invoke(target, values)!;

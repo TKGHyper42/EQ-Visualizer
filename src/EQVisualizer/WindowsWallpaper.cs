@@ -16,9 +16,10 @@ internal static class WindowsWallpaper
     private static readonly string backupPath = Path.Combine(directory, "previous-wallpaper.txt");
     private static readonly SemaphoreSlim gate = new(1, 1);
     private static int generation;
+    public static void InvalidatePending() => Interlocked.Increment(ref generation);
 
     // Takes ownership of the bitmap. Only the most recent request can apply it.
-    public static void Apply(Bitmap image)
+    public static void Apply(Bitmap image, Action? applied = null)
     {
         int version = Interlocked.Increment(ref generation);
         _ = Task.Run(async () =>
@@ -39,6 +40,7 @@ internal static class WindowsWallpaper
                         if (!IsOurs(current)) File.WriteAllText(backupPath, current);
                         File.Move(temporary, wallpaperPath, overwrite: true);
                         SetWallpaper(wallpaperPath);
+                        if (version == Volatile.Read(ref generation)) applied?.Invoke();
                     }
                     finally { File.Delete(temporary); }
                 }
@@ -48,22 +50,28 @@ internal static class WindowsWallpaper
         });
     }
 
-    public static void Restore()
+    public static void Restore() => RestoreAsync().GetAwaiter().GetResult();
+
+    public static Task RestoreAsync()
     {
-        Interlocked.Increment(ref generation);
-        gate.Wait();
-        try
+        int version = Interlocked.Increment(ref generation);
+        return Task.Run(async () =>
         {
-            // Leave any wallpaper the user applied while EQ Visualizer was open.
-            if (File.Exists(backupPath) && IsOurs(CurrentWallpaper()))
+            await gate.WaitAsync();
+            try
             {
-                string original = File.ReadAllText(backupPath);
-                if (!IsOurs(original)) SetWallpaper(original);
+                if (version != Volatile.Read(ref generation)) return;
+                // Leave any wallpaper the user applied while EQ Visualizer was open.
+                if (File.Exists(backupPath) && IsOurs(CurrentWallpaper()))
+                {
+                    string original = File.ReadAllText(backupPath);
+                    if (!IsOurs(original)) SetWallpaper(original);
+                }
+                if (File.Exists(wallpaperPath) && !IsOurs(CurrentWallpaper())) File.Delete(wallpaperPath);
             }
-            if (File.Exists(wallpaperPath) && !IsOurs(CurrentWallpaper())) File.Delete(wallpaperPath);
-        }
-        catch (Exception error) { Trace.TraceWarning("EQ Visualizer wallpaper: {0}", error.Message); }
-        finally { gate.Release(); }
+            catch (Exception error) { Trace.TraceWarning("EQ Visualizer wallpaper: {0}", error.Message); }
+            finally { gate.Release(); }
+        });
     }
 
     private static string CurrentWallpaper()

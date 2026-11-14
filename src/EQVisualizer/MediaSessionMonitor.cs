@@ -3,6 +3,7 @@ using System.Drawing.Imaging;
 using Windows.Foundation;
 using Windows.Media.Control;
 using Windows.Storage.Streams;
+using System.Security.Cryptography;
 
 namespace EQVisualizer;
 
@@ -13,6 +14,12 @@ internal sealed class NowPlayingChangedEventArgs(string title, string artist, Im
     public Image? Artwork { get; } = artwork;
     public PlaybackActivity Activity { get; } = activity;
     public bool HasSession { get; } = hasSession;
+
+    public bool SameTrack(NowPlayingChangedEventArgs other) =>
+        HasSession == other.HasSession && Title == other.Title && Artist == other.Artist &&
+        (Artwork is null && other.Artwork is null ||
+         Artwork?.Tag is string fingerprint && other.Artwork?.Tag is string otherFingerprint &&
+         fingerprint == otherFingerprint);
 }
 
 internal sealed record MediaSessionChoice(string Id, string Label);
@@ -34,6 +41,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
     private GlobalSystemMediaTransportControlsSessionManager? manager;
     private GlobalSystemMediaTransportControlsSession? session;
     private string? preferredSourceId;
+    private PlaybackActivity lastActivity = PlaybackActivity.Stopped;
     public event EventHandler<NowPlayingChangedEventArgs>? Changed;
     public event EventHandler<PlaybackStateChangedEventArgs>? PlaybackChanged;
     public event EventHandler<MediaSessionsChangedEventArgs>? SessionsChanged;
@@ -79,6 +87,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         try
         {
             if (disposed) return;
+            string? previousSource = session?.SourceAppUserModelId;
             int version = Interlocked.Increment(ref generation);
             if (session is not null)
             {
@@ -111,6 +120,7 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
                     }
                 }
             }
+            if (session?.SourceAppUserModelId != previousSource) lastActivity = PlaybackActivity.Stopped;
             if (session is null) { Publish(null, "", "", null, version); return; }
             session.MediaPropertiesChanged += OnMediaPropertiesChanged;
             session.PlaybackInfoChanged += OnPlaybackInfoChanged;
@@ -147,20 +157,26 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         }, null);
     }
 
-    private static PlaybackActivity ReadActivity(GlobalSystemMediaTransportControlsSession current)
+    private PlaybackActivity ReadActivity(GlobalSystemMediaTransportControlsSession current)
     {
         try
         {
-            return current.GetPlaybackInfo().PlaybackStatus switch
+            lastActivity = ResolveActivity(current.GetPlaybackInfo().PlaybackStatus, lastActivity);
+            return lastActivity;
+        }
+        catch { return lastActivity; }
+    }
+
+    internal static PlaybackActivity ResolveActivity(
+        GlobalSystemMediaTransportControlsSessionPlaybackStatus status, PlaybackActivity previous) =>
+            status switch
             {
                 GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => PlaybackActivity.Playing,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => PlaybackActivity.Paused,
                 GlobalSystemMediaTransportControlsSessionPlaybackStatus.Stopped or
                     GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed => PlaybackActivity.Stopped,
-                _ => PlaybackActivity.Paused
+                _ => previous
             };
-        }
-        catch { return PlaybackActivity.Paused; }
-    }
 
     private async Task PublishSessionsAsync()
     {
@@ -226,7 +242,9 @@ internal sealed class MediaSessionMonitor(SynchronizationContext context) : IDis
         {
             using var memory = new MemoryStream(bytes);
             using var decoded = Image.FromStream(memory);
-            return NormalizeArtwork(decoded);
+            var normalized = NormalizeArtwork(decoded);
+            if (normalized is not null) normalized.Tag = Convert.ToHexString(SHA256.HashData(bytes));
+            return normalized;
         });
     }
 

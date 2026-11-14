@@ -27,6 +27,13 @@ internal sealed class WallpaperForm : Form
     private Vector2 pointer;
     private Vector4 primary = new(.2f, .85f, 1, 1), secondary = new(.7f, .25f, 1, 1);
     private ShadeRegion[] shades = [];
+    public long PresentedFrames { get; private set; }
+    public string DebugState => !settings.Enabled ? "Desactivado" :
+        systemPaused ? "Suspendido" : !Attached ? "Sin enlace con Explorer" :
+        !Visible ? "Oculto" : covered ? "Cubierto" :
+        timer.Enabled && hasMusicSession ? "Animado" :
+        timer.Enabled ? "Reloj" : "Estático";
+
     public bool Attached => IsHandleCreated && DesktopHost.IsAttached(Handle);
     public Rectangle MonitorBounds => screen.Bounds;
     public bool NeedsAudio => timer.Enabled && hasMusicSession && isPlaying;
@@ -103,7 +110,13 @@ internal sealed class WallpaperForm : Form
     public void RefreshIdleOptions()
     {
         if (!hasMusicSession) SetNowPlaying(null, false, hasSession: false);
-        else RefreshState(true);
+        else
+        {
+            caption?.Dispose();
+            caption = null;
+            try { renderer?.SetCaption(null); } catch { DropRenderer(); }
+            RefreshState(true);
+        }
     }
     private Image? LoadIdleImage()
     {
@@ -197,11 +210,14 @@ internal sealed class WallpaperForm : Form
             try
             {
                 renderer.Resize((int)(Width * settings.RenderScale), (int)(Height * settings.RenderScale));
-                renderer.Render(scene.Vertices); return;
+                renderer.Render(scene.Vertices);
+                PresentedFrames++;
+                return;
             }
             catch { DropRenderer(); }
         }
         RenderCompatibility(e.Graphics);
+        PresentedFrames++;
     }
     private void PresentFrame()
     {
@@ -215,6 +231,7 @@ internal sealed class WallpaperForm : Form
             }
             using (var buffer = Graphics.FromImage(softwareFrame)) RenderCompatibility(buffer);
             using (var target = Graphics.FromHwnd(Handle)) target.DrawImageUnscaled(softwareFrame, 0, 0);
+            PresentedFrames++;
             return;
         }
         try
@@ -222,6 +239,7 @@ internal sealed class WallpaperForm : Form
             BuildFrame();
             renderer.Resize((int)(Width * settings.RenderScale), (int)(Height * settings.RenderScale));
             renderer.Render(scene.Vertices);
+            PresentedFrames++;
         }
         catch { DropRenderer(); Invalidate(); }
     }
@@ -234,7 +252,7 @@ internal sealed class WallpaperForm : Form
         }
         if (hasMusicSession && settings.ShowTrackInfo && caption is null && !(string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)))
         {
-            caption = TrackCaption.Create(title, artist);
+            caption = TrackCaption.Create(title, artist, settings.CaptionOpacity, settings.CaptionTextShadow);
             try { renderer?.SetCaption(caption); } catch { DropRenderer(); }
         }
         var region = settings.ContrastMode == ContrastMode.WholeImage ? new[] { new ShadeRegion(0, 0, Width, Height) } : settings.ContrastMode == ContrastMode.Adaptive ? shades : [];
@@ -252,26 +270,37 @@ internal sealed class WallpaperForm : Form
                 settings.ShowTrackInfo && caption is not null, settings.CircleBarHeight, settings.BottomBarHeight,
                  new BarAppearance(settings.CircleBarHeight, settings.CircleBarThickness, settings.CircleBarOpacity, settings.CircleBarRounded),
                  new BarAppearance(settings.BottomBarHeight, settings.BottomBarThickness, settings.BottomBarOpacity, settings.BottomBarRounded),
-                 settings.BottomBarWidth),
+                 settings.BottomBarWidth, settings.Gradient, settings.GradientStrength),
                 still ? [] : spectrum, region);
         }
     }
-    public Bitmap? CreateWindowsWallpaper()
+    public Task<Bitmap?> CreateWindowsWallpaperAsync()
     {
-        if (artwork is null || !hasMusicSession || Width < 1 || Height < 1) return null;
+        if (artwork is null || !hasMusicSession || Width < 1 || Height < 1)
+            return Task.FromResult<Bitmap?>(null);
         BuildFrame(still: true);
-        var image = new Bitmap(Width, Height, PixelFormat.Format32bppRgb);
-        try
+        var bounds = ClientRectangle;
+        var vertices = scene.Vertices.ToArray();
+        var coverCopy = new Bitmap(artwork);
+        var backdropCopy = backdrop is null ? null : new Bitmap(backdrop);
+        var captionCopy = caption is null ? null : new Bitmap(caption);
+        return Task.Run<Bitmap?>(() =>
         {
-            using var graphics = Graphics.FromImage(image);
-            RenderCompatibility(graphics);
-            return image;
-        }
-        catch
-        {
-            image.Dispose();
-            throw;
-        }
+            using (coverCopy)
+            using (backdropCopy)
+            using (captionCopy)
+            {
+                var image = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
+                try
+                {
+                    using var graphics = Graphics.FromImage(image);
+                    graphics.Clear(Color.FromArgb(8, 8, 12));
+                    SoftwareSceneRenderer.Draw(graphics, bounds, vertices, coverCopy, backdropCopy, captionCopy);
+                    return image;
+                }
+                catch { image.Dispose(); throw; }
+            }
+        });
     }
     private void RenderCompatibility(Graphics g)
     {

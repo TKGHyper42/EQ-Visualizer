@@ -11,12 +11,15 @@ internal struct GpuVertex
     public float Textured;
 }
 internal readonly record struct ShadeRegion(float X, float Y, float Width, float Height, float Opacity = .68f);
+internal enum BarGradient { Cover, Inverted, LightTips, Solid }
+
 internal readonly record struct BarAppearance(float Height, float Thickness, float Opacity, bool Rounded);
 internal readonly record struct SceneOptions(float Width, float Height, float Phase,
     Vector2 Center, float CoverSize, float Intensity, float Sensitivity, bool Tunnel,
     bool Ring, bool Bottom, float BottomY, int Layers, Vector4 Primary, Vector4 Secondary,
     float BarThickness = 1.6f, bool ShowTrackInfo = false, float CircleBarHeight = 1, float BottomBarHeight = 1,
-    BarAppearance? CircleAppearance = null, BarAppearance? BottomAppearance = null, float BottomWidth = .52f);
+    BarAppearance? CircleAppearance = null, BarAppearance? BottomAppearance = null, float BottomWidth = .52f,
+    BarGradient Gradient = BarGradient.Cover, float GradientStrength = 1);
 
 internal sealed class VisualScene
 {
@@ -25,6 +28,7 @@ internal sealed class VisualScene
         .Select(index => MathF.Tau * index / 32)
         .Select(angle => new Vector2(MathF.Cos(angle), MathF.Sin(angle)))
         .ToArray();
+    private Vector2[] circleDirections = [];
     private readonly GpuVertex[] vertices = new GpuVertex[16384];
     private int count;
     private float width, height;
@@ -119,13 +123,33 @@ internal sealed class VisualScene
             captionTop = Math.Clamp(captionTop, 0, height - captionHeight);
         }
 
-        for (int i = 0; i < spectrum.Length; i++)
+        float gradientStrength = Math.Clamp(o.GradientStrength, 0, 1);
+        if (drawCircle && circleDirections.Length != spectrum.Length)
+        {
+            circleDirections = new Vector2[spectrum.Length];
+            for (int i = 0; i < circleDirections.Length; i++)
+            {
+                float angle = MathF.Tau * i / circleDirections.Length - MathF.PI / 2;
+                circleDirections[i] = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            }
+        }
+        for (int i = 0; (drawCircle || drawBottom) && i < spectrum.Length; i++)
         {
             float band = Math.Clamp(spectrum[i], 0, 1);
             // Boost quiet bands while keeping loud bands distinct at high sensitivity.
             float signal = band * sensitivity / (1 + band * sensitivityBoost);
-            var color = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1)); color.W = .7f;
-            var tip = Vector4.Lerp(color, o.Secondary, .65f); tip.W = .85f;
+            var paletteColor = Vector4.Lerp(o.Primary, o.Secondary, i / (float)Math.Max(1, spectrum.Length - 1));
+            var color = paletteColor * .42f;
+            var tip = o.Gradient switch
+            {
+                BarGradient.LightTips => Vector4.Lerp(paletteColor, Vector4.One, .65f),
+                BarGradient.Solid => paletteColor,
+                _ => o.Secondary
+            };
+            if (o.Gradient == BarGradient.Solid) color = tip;
+            if (o.Gradient == BarGradient.Inverted) (color, tip) = (tip, color);
+            color = Vector4.Lerp(paletteColor, color, gradientStrength) with { W = .85f };
+            tip = Vector4.Lerp(paletteColor, tip, gradientStrength) with { W = .85f };
             if (drawBottom && bottomAnchor > .5f)
             {
                 float length = 1 + signal * bottomPeak;
@@ -141,8 +165,7 @@ internal sealed class VisualScene
             }
             if (drawCircle)
             {
-                float angle = MathF.Tau * i / spectrum.Length - MathF.PI / 2;
-                var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                var direction = circleDirections[i];
                 var start = center + direction * circleRadius;
                 float length = 1 + signal * circlePeak;
                 float towardCaption = captionAbove ? -direction.Y : direction.Y;
@@ -179,20 +202,26 @@ internal sealed class VisualScene
             var direction = tunnelOutline[index];
             Line(center + direction * farRadius, center + direction * nearRadius, scale, rail);
         }
+        float radiusRatio = nearRadius / farRadius;
         for (int layer = 0; layer < layers; layer++)
         {
             float depth = (layer + offset) / layers;
             // Rings spread apart as they approach the viewer.
-            float radius = farRadius * MathF.Pow(nearRadius / farRadius, depth);
+            float radius = farRadius * MathF.Pow(radiusRatio, depth);
             float thickness = scale * (1 + depth * 2.5f);
             float fade = Math.Min(1, Math.Min(layer + offset, layers - layer - offset));
             var color = Vector4.Lerp(options.Primary, options.Secondary, depth) with { W = fade * (.18f + depth * .29f) };
+            float innerRadius = radius - thickness;
+            var outer = center + tunnelOutline[0] * radius;
+            var inner = center + tunnelOutline[0] * innerRadius;
             for (int index = 0; index < tunnelOutline.Length; index++)
             {
-                var a = tunnelOutline[index];
                 var b = tunnelOutline[(index + 1) % tunnelOutline.Length];
-                Add(center + a * radius, center + b * radius,
-                    center + b * (radius - thickness), center + a * (radius - thickness), color, false);
+                var nextOuter = center + b * radius;
+                var nextInner = center + b * innerRadius;
+                Add(outer, nextOuter, nextInner, inner, color, false);
+                outer = nextOuter;
+                inner = nextInner;
             }
         }
     }
@@ -240,8 +269,13 @@ internal sealed class VisualScene
     private void Add(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector4 startColor, Vector4 endColor, float texture)
     {
         if (count + 6 > vertices.Length) return;
-        vertices[count++] = Vertex(a, new(0, 0), startColor, texture); vertices[count++] = Vertex(b, new(1, 0), startColor, texture);
-        vertices[count++] = Vertex(c, new(1, 1), endColor, texture); vertices[count++] = Vertex(a, new(0, 0), startColor, texture);
-        vertices[count++] = Vertex(c, new(1, 1), endColor, texture); vertices[count++] = Vertex(d, new(0, 1), endColor, texture);
+        var first = Vertex(a, new(0, 0), startColor, texture);
+        var third = Vertex(c, new(1, 1), endColor, texture);
+        vertices[count++] = first;
+        vertices[count++] = Vertex(b, new(1, 0), startColor, texture);
+        vertices[count++] = third;
+        vertices[count++] = first;
+        vertices[count++] = third;
+        vertices[count++] = Vertex(d, new(0, 1), endColor, texture);
     }
 }

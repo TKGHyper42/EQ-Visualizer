@@ -7,12 +7,14 @@ internal sealed class SettingsForm : ModernForm
     private readonly CheckBox capture = new UiToggle() { Text = "Analizar la salida de audio", AutoSize = false };
     private readonly CheckBox tunnel = new UiToggle() { Text = "Túnel en perspectiva", AutoSize = false };
     private readonly CheckBox parallax = new UiToggle() { Text = "Seguir suavemente el cursor", AutoSize = false };
+    private readonly CheckBox captionShadow = new UiToggle { Text = "Sombra del texto", AutoSize = false };
     private readonly CheckBox trackInfo = new UiToggle() { Text = "Título y artista", AutoSize = false };
     private readonly CheckBox softwareRenderer = new UiToggle() { Text = "Usar GDI+ (compatibilidad)", AutoSize = false };
     private readonly CheckBox circleRounded = new UiToggle() { Text = "Extremos redondeados", AutoSize = false };
     private readonly CheckBox bottomRounded = new UiToggle() { Text = "Extremos redondeados", AutoSize = false };
     private readonly CheckBox ctrl = new UiChip() { Text = "Ctrl", AutoSize = false }, alt = new UiChip() { Text = "Alt", AutoSize = false }, shift = new UiChip() { Text = "Shift", AutoSize = false };
     private readonly UiSelect mode = Choices(VisualizerModes.All.Select(m => (object)m.Label()).ToArray());
+    private readonly UiSelect gradient = Choices("Portada", "Portada invertida", "Puntas claras", "Sólido");
     private readonly UiSelect contrast = Choices("Adaptativo por iconos", "Oscurecer imagen completa", "Desactivado");
     private readonly UiSelect idleMode = Choices("Ocultar wallpaper", "Reloj", "Imagen personalizada", "Imagen y reloj");
     private readonly UiSelect clockStyle = Choices("Digital redondeado", "Analógico circular");
@@ -31,6 +33,7 @@ internal sealed class SettingsForm : ModernForm
     {
         this.settings = settings;
         ShowInTaskbar = true;
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
         customAccent = settings.InterfaceAccent != 0;
         selectedAccent = customAccent ? InterfacePalettes.EnsureAccent(Color.FromArgb(settings.InterfaceAccent), InterfacePalettes.For(settings.InterfaceTheme).Surface)
             : InterfacePalettes.For(settings.InterfaceTheme).Accent;
@@ -57,7 +60,7 @@ internal sealed class SettingsForm : ModernForm
         contentHost.Controls.Add(previewLayout);
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 74, Padding = new Padding(28, 14, 28, 16), BackColor = Ui.Background };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, Width = 270, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-        var save = new UiButton { Text = "Guardar cambios", DialogResult = DialogResult.OK, Primary = true, Width = 148, Margin = new Padding(8, 0, 0, 0) };
+        var save = new UiButton { Text = "Guardar cambios", Primary = true, Width = 148, Margin = new Padding(8, 0, 0, 0) };
         var cancel = new UiButton { Text = "Cancelar", DialogResult = DialogResult.Cancel, Width = 100, Quiet = true, Margin = new Padding(0) };
         buttons.Controls.AddRange([save, cancel]);
         footer.Controls.Add(new Label { Text = "Los cambios se aplican al guardar", ForeColor = Ui.Muted, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = Ui.Font(8.5f) });
@@ -71,9 +74,15 @@ internal sealed class SettingsForm : ModernForm
             if (pageMotion.Value >= 1) slidingPage.Dock = DockStyle.Fill;
         });
         AcceptButton = save; CancelButton = cancel;
+        save.Click += (_, _) => SaveChanges();
+        cancel.Click += (_, _) => { if (!Modal) Close(); };
         var appearance = Page("Portada", "El centro de tu escritorio.");
         Row(appearance, "Visualizador", mode); mode.SelectedIndex = Math.Clamp((int)settings.VisualizerMode, 0, mode.Items.Count - 1);
         trackInfo.Checked = settings.ShowTrackInfo; Row(appearance, "Información de la canción", trackInfo);
+        Slider(appearance, "Opacidad del recuadro (%)", "captionOpacity", settings.CaptionOpacity * 100, 0, 100, 5);
+        captionShadow.Checked = settings.CaptionTextShadow;
+        Row(appearance, "Sombra de título y artista", captionShadow);
+        captionShadow.CheckedChanged += (_, _) => UpdatePreview();
         Slider(appearance, "Tamaño de portada (%)", "size", settings.CoverSize * 100, 15, 65);
         Slider(appearance, "Posición horizontal (%)", "x", settings.PositionX * 100, 10, 90);
         Slider(appearance, "Posición vertical (%)", "y", settings.PositionY * 100, 10, 90);
@@ -117,6 +126,9 @@ internal sealed class SettingsForm : ModernForm
 
         var audio = Page("Audio", "Dale forma a lo que escuchas.");
         capture.Checked = settings.CaptureAudio; Row(audio, "Captura", capture);
+        gradient.SelectedIndex = Math.Clamp((int)settings.Gradient, 0, gradient.Items.Count - 1);
+        Row(audio, "Degradado de las barras", gradient);
+        Slider(audio, "Intensidad del degradado (%)", "gradientStrength", settings.GradientStrength * 100, 0, 100, 5);
         Slider(audio, "Sensibilidad", "sensitivity", settings.Sensitivity, .1m, 5, .1m);
         Slider(audio, "Suavizado (segundos)", "smoothing", settings.Smoothing, .02m, 1, .02m);
         Slider(audio, "Intensidad (%)", "strength", settings.Strength * 100, 0, 300);
@@ -173,6 +185,7 @@ internal sealed class SettingsForm : ModernForm
         foreach (var slider in sliders.Values) slider.ValueChanged += (_, _) => UpdatePreview();
         foreach (var box in new CheckBox[] { capture, tunnel, parallax, trackInfo, circleRounded, bottomRounded }) box.CheckedChanged += (_, _) => UpdatePreview();
         mode.SelectedIndexChanged += (_, _) => UpdatePreview();
+        gradient.SelectedIndexChanged += (_, _) => UpdatePreview();
         contrast.SelectedIndexChanged += (_, _) => UpdatePreview();
         UpdatePreview();
         SelectSection(0);
@@ -221,7 +234,8 @@ internal sealed class SettingsForm : ModernForm
             new BarAppearance(N("circleHeight") / 100, N("circleThickness") / 100,
                 N("circleOpacity") / 100, circleRounded.Checked),
             new BarAppearance(N("bottomHeight") / 100, N("bottomThickness") / 100,
-                N("bottomOpacity") / 100, bottomRounded.Checked), N("bottomWidth") / 100));
+                N("bottomOpacity") / 100, bottomRounded.Checked), N("bottomWidth") / 100,
+            N("captionOpacity") / 100, (BarGradient)gradient.SelectedIndex, N("gradientStrength") / 100, captionShadow.Checked));
         WindowOpacity = N("opacity") / 100d;
         if (IsHandleCreated) Opacity = WindowOpacity;
     }
@@ -268,45 +282,57 @@ internal sealed class SettingsForm : ModernForm
         var label = new Label { Text = text, AutoSize = true, MaximumSize = new Size(550, 0), ForeColor = Ui.Muted, Font = Ui.Font(9), Margin = new Padding(0, 18, 0, 4) };
         table.Controls.Add(label, 0, row); table.SetColumnSpan(label, 2);
     }
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    public event EventHandler? ChangesSaved;
+
+    private void SaveChanges()
     {
-        if (DialogResult == DialogResult.OK)
+        if (((IdleMode)idleMode.SelectedIndex).HasImage() && !SettingsPreview.CanLoadImage(idlePath.Text))
         {
-            if (((IdleMode)idleMode.SelectedIndex).HasImage() && !SettingsPreview.CanLoadImage(idlePath.Text))
-            { MessageBox.Show(this, "Selecciona una imagen PNG, JPG, JPEG o BMP válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música"); e.Cancel = true; return; }
-            if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||
-                Equals(toggleKey.SelectedItem, effectsKey.SelectedItem) || !ctrl.Checked && !alt.Checked && !shift.Checked)
-            { MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos"); e.Cancel = true; return; }
-            float N(string name) => (float)sliders[name].Value;
-            settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
-            settings.ShowTrackInfo = trackInfo.Checked;
-            settings.CircleBarHeight = N("circleHeight") / 100;
-            settings.BottomBarHeight = N("bottomHeight") / 100;
-            settings.CircleBarThickness = N("circleThickness") / 100;
-            settings.BottomBarThickness = N("bottomThickness") / 100;
-            settings.CircleBarOpacity = N("circleOpacity") / 100;
-            settings.BottomBarOpacity = N("bottomOpacity") / 100;
-            settings.CircleBarRounded = circleRounded.Checked;
-            settings.BottomBarRounded = bottomRounded.Checked;
-            settings.BottomBarWidth = N("bottomWidth") / 100;
-            settings.BarThickness = settings.CircleBarThickness; // Keep old setting for migration
-            settings.BackgroundBlur = N("blur");
-            settings.InterfaceTheme = (InterfaceTheme)interfaceTheme.SelectedIndex;
-            settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
-            settings.InterfaceOpacity = (int)N("opacity");
-            settings.NoSessionMode = (IdleMode)idleMode.SelectedIndex;
-            settings.ClockStyle = (IdleClockStyle)clockStyle.SelectedIndex;
-            settings.NoSessionImagePath = string.IsNullOrWhiteSpace(idlePath.Text) ? null : idlePath.Text;
-            settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
-            settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
-            settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;
-            settings.Fps = (int)N("fps"); settings.RenderScale = N("scale") / 100; settings.QualityLayers = (int)N("layers");
-            settings.UseGdiRenderer = softwareRenderer.Checked;
-            settings.HotkeyKey = (Keys)toggleKey.SelectedItem; settings.EffectsHotkeyKey = (Keys)effectsKey.SelectedItem;
-            settings.HotkeyControl = ctrl.Checked; settings.HotkeyAlt = alt.Checked; settings.HotkeyShift = shift.Checked;
+            MessageBox.Show(this, "Selecciona una imagen PNG, JPG, JPEG o BMP válida de hasta 20 MB y 8192 × 8192 píxeles.", "Imagen sin música");
+            return;
         }
-        if (!e.Cancel && DialogResult != DialogResult.OK)
-            Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
-        base.OnFormClosing(e);
+        if (toggleKey.SelectedItem is not Keys || effectsKey.SelectedItem is not Keys ||
+            Equals(toggleKey.SelectedItem, effectsKey.SelectedItem) || !ctrl.Checked && !alt.Checked && !shift.Checked)
+        {
+            MessageBox.Show(this, "Elige dos teclas distintas y al menos un modificador.", "Atajos");
+            return;
+        }
+        float N(string name) => (float)sliders[name].Value;
+        settings.VisualizerMode = (VisualizerMode)mode.SelectedIndex; settings.ContrastMode = (ContrastMode)contrast.SelectedIndex;
+        settings.ShowTrackInfo = trackInfo.Checked;
+        settings.CaptionOpacity = N("captionOpacity") / 100;
+        settings.CaptionTextShadow = captionShadow.Checked;
+        settings.Gradient = (BarGradient)gradient.SelectedIndex;
+        settings.GradientStrength = N("gradientStrength") / 100;
+        settings.CircleBarHeight = N("circleHeight") / 100;
+        settings.BottomBarHeight = N("bottomHeight") / 100;
+        settings.CircleBarThickness = N("circleThickness") / 100;
+        settings.BottomBarThickness = N("bottomThickness") / 100;
+        settings.CircleBarOpacity = N("circleOpacity") / 100;
+        settings.BottomBarOpacity = N("bottomOpacity") / 100;
+        settings.CircleBarRounded = circleRounded.Checked;
+        settings.BottomBarRounded = bottomRounded.Checked;
+        settings.BottomBarWidth = N("bottomWidth") / 100;
+        settings.BarThickness = settings.CircleBarThickness; // Keep old setting for migration
+        settings.BackgroundBlur = N("blur");
+        settings.InterfaceTheme = (InterfaceTheme)interfaceTheme.SelectedIndex;
+        settings.InterfaceAccent = customAccent ? selectedAccent.ToArgb() : 0;
+        settings.InterfaceOpacity = (int)N("opacity");
+        settings.NoSessionMode = (IdleMode)idleMode.SelectedIndex;
+        settings.ClockStyle = (IdleClockStyle)clockStyle.SelectedIndex;
+        settings.NoSessionImagePath = string.IsNullOrWhiteSpace(idlePath.Text) ? null : idlePath.Text;
+        settings.CoverSize = N("size") / 100; settings.PositionX = N("x") / 100; settings.PositionY = N("y") / 100; settings.BottomMargin = N("margin") / 100;
+        settings.CaptureAudio = capture.Checked; settings.Sensitivity = N("sensitivity"); settings.Smoothing = N("smoothing"); settings.Strength = N("strength") / 100;
+        settings.EnableTunnel = tunnel.Checked; settings.EnableParallax = parallax.Checked; settings.ParallaxStrength = N("parallax") / 100;
+        settings.Fps = (int)N("fps"); settings.RenderScale = N("scale") / 100; settings.QualityLayers = (int)N("layers");
+        settings.UseGdiRenderer = softwareRenderer.Checked;
+        settings.HotkeyKey = (Keys)toggleKey.SelectedItem; settings.EffectsHotkeyKey = (Keys)effectsKey.SelectedItem;
+        settings.HotkeyControl = ctrl.Checked; settings.HotkeyAlt = alt.Checked; settings.HotkeyShift = shift.Checked;
+        ChangesSaved?.Invoke(this, EventArgs.Empty);
+        toggleKey.SelectedItem = settings.HotkeyKey;
+        effectsKey.SelectedItem = settings.EffectsHotkeyKey;
+        ctrl.Checked = settings.HotkeyControl;
+        alt.Checked = settings.HotkeyAlt;
+        shift.Checked = settings.HotkeyShift;
     }
 }

@@ -14,6 +14,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        SetCurrentProcessExplicitAppUserModelID("TKGHyper42.EQVisualizer");
         ApplicationConfiguration.Initialize();
         Application.SetColorMode(StoredInterfaceTheme().IsDark() ? SystemColorMode.Dark : SystemColorMode.Classic);
         if (args.Length == 2 && args[0] == "--smoke-test") return SmokeTest.Run(args[1]);
@@ -28,6 +29,9 @@ internal static class Program
         Application.Run(new WallpaperContext(openSettings));
         return 0;
     }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
+
     private static InterfaceTheme StoredInterfaceTheme()
     {
         try
@@ -76,6 +80,10 @@ internal sealed class Settings
     public ContrastMode ContrastMode { get; set; } = ContrastMode.Adaptive;
     public Keys EffectsHotkeyKey { get; set; } = Keys.E;
     public bool ShowTrackInfo { get; set; } = true;
+    public float CaptionOpacity { get; set; } = .65f;
+    public bool CaptionTextShadow { get; set; }
+    public BarGradient Gradient { get; set; }
+    public float GradientStrength { get; set; } = 1;
     public bool UseGdiRenderer { get; set; }
     public float BarThickness { get; set; } = 1.6f;
     public float CircleBarHeight { get; set; } = 1;
@@ -105,6 +113,7 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly Settings settings;
     private readonly EventWaitHandle openSettings;
     private SettingsForm? activeSettings;
+    private DebugForm? debugWindow;
     private readonly HotkeyWindow hotkey = new();
     private readonly ToolStripMenuItem sourceMenu = new("Reproductor");
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 500 };
@@ -137,6 +146,9 @@ internal sealed class WallpaperContext : ApplicationContext
                 settings.BottomBarThickness = settings.BarThickness;
         }
         catch { settings = new(); }
+        settings.CaptionOpacity = Math.Clamp(settings.CaptionOpacity, 0, 1);
+        settings.GradientStrength = Math.Clamp(settings.GradientStrength, 0, 1);
+        if (!Enum.IsDefined(settings.Gradient)) settings.Gradient = BarGradient.Cover;
         settings.Fps = Math.Clamp(settings.Fps, 30, 120);
         settings.Strength = Math.Clamp(settings.Strength, 0, 3);
         settings.ParallaxStrength = Math.Clamp(settings.ParallaxStrength, 0, 3);
@@ -166,6 +178,7 @@ internal sealed class WallpaperContext : ApplicationContext
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
         menu.Items.Add("Ajustes...", null, (_, _) => ShowSettings());
+        menu.Items.Add("Debug...", null, (_, _) => ShowDebug());
         menu.Items.Add("Abrir bienvenida...", null, (_, _) => ShowWelcome(force: true));
         menu.Items.Add("Crear acceso directo en el escritorio", null, (_, _) => CreateDesktopShortcut());
         var modeMenu = new ToolStripMenuItem("Visualizador");
@@ -378,6 +391,13 @@ internal sealed class WallpaperContext : ApplicationContext
     private void OnMediaChanged(object? sender, NowPlayingChangedEventArgs e)
     {
         if (exiting) { e.Artwork?.Dispose(); return; }
+        if (currentTrack is { } previous && previous.SameTrack(e))
+        {
+            e.Artwork?.Dispose();
+            SetMediaActivity(e.Activity);
+            RefreshMediaPresentation();
+            return;
+        }
         currentTrack?.Artwork?.Dispose();
         currentTrack = e.HasSession ? e : null;
         if (currentTrack is null) e.Artwork?.Dispose();
@@ -413,7 +433,9 @@ internal sealed class WallpaperContext : ApplicationContext
             foreach (var form in forms) form.SetPlaybackState(playing);
         }
         audio.Update(settings.CaptureAudio && forms.Any(f => f.NeedsAudio), settings.AudioDeviceId, settings.AudioProcessId, settings.AudioProcessStartTicks);
-        if (replaceScene || trackChanged) UpdateWindowsWallpaper();
+        if ((replaceScene || trackChanged) && (!showTrack || !staticWallpaperRequested ||
+            forms.FirstOrDefault()?.Attached != true))
+            UpdateWindowsWallpaper();
         return replaceScene;
     }
 
@@ -426,16 +448,43 @@ internal sealed class WallpaperContext : ApplicationContext
         tray.Text = settings.Enabled ? "EQ Visualizer" : "EQ Visualizer (pausado)";
     }
 
-    private void UpdateWindowsWallpaper()
+    private int wallpaperGeneration;
+    private bool staticWallpaperRequested;
+    private bool primaryAttached;
+
+    private async void UpdateWindowsWallpaper()
     {
+        int version = ++wallpaperGeneration;
+        WindowsWallpaper.InvalidatePending();
         if (!settings.Enabled || forms.FirstOrDefault() is not { HasMusicSession: true } form)
         {
-            WindowsWallpaper.Restore();
+            staticWallpaperRequested = false;
+            _ = WindowsWallpaper.RestoreAsync();
             return;
         }
+        staticWallpaperRequested = true;
         try
         {
-            if (form.CreateWindowsWallpaper() is { } image) WindowsWallpaper.Apply(image);
+            var image = await form.CreateWindowsWallpaperAsync();
+            if (exiting || version != wallpaperGeneration)
+            {
+                image?.Dispose();
+                return;
+            }
+            if (image is not null)
+                WindowsWallpaper.Apply(image, () =>
+                {
+                    if (exiting || form.IsDisposed || !form.IsHandleCreated) return;
+                    try
+                    {
+                        form.BeginInvoke(() =>
+                        {
+                            if (exiting || version != wallpaperGeneration) return;
+                            foreach (var wallpaper in forms) wallpaper.RefreshState(true);
+                        });
+                    }
+                    catch (InvalidOperationException) { }
+                });
         }
         catch (Exception error) { Trace.TraceWarning("EQ Visualizer wallpaper: {0}", error.Message); }
     }
@@ -474,6 +523,10 @@ internal sealed class WallpaperContext : ApplicationContext
     private void RecoverDesktop()
     {
         if (exiting) return;
+        bool attached = forms.FirstOrDefault()?.Attached == true;
+        if (primaryAttached && !attached && showingTrack && settings.Enabled && !systemPaused)
+            UpdateWindowsWallpaper();
+        primaryAttached = attached;
         foreach (var form in forms)
         {
             if (!systemPaused && settings.Enabled && pollCount % 4 == 0 && !DesktopHost.IsAttached(form.Handle))
@@ -489,6 +542,21 @@ internal sealed class WallpaperContext : ApplicationContext
         var rects = await iconContrast.RefreshAsync();
         if (!exiting) foreach (var f in forms) f.SetShades(rects);
     }
+    private void ShowDebug()
+    {
+        if (debugWindow is { } current)
+        {
+            if (current.WindowState == FormWindowState.Minimized) current.WindowState = FormWindowState.Normal;
+            current.Activate();
+            return;
+        }
+
+        var window = new DebugForm(forms, settings);
+        debugWindow = window;
+        window.FormClosed += (_, _) => debugWindow = null;
+        window.Show();
+    }
+
     private void ShowSettings()
     {
         if (activeSettings is { } current)
@@ -499,17 +567,26 @@ internal sealed class WallpaperContext : ApplicationContext
         }
         bool previousRenderer = settings.UseGdiRenderer;
         var previous = (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift);
-        using var window = new SettingsForm(settings, forms.Count > 0 ? forms[0].CopyArtwork() : null);
+        var window = new SettingsForm(settings, forms.Count > 0 ? forms[0].CopyArtwork() : null);
         activeSettings = window;
-        DialogResult result;
-        try { result = window.ShowDialog(); }
-        finally { activeSettings = null; }
-        if (result != DialogResult.OK)
+        window.ChangesSaved += (_, _) =>
         {
+            ApplySettings(previousRenderer, previous);
+            previousRenderer = settings.UseGdiRenderer;
+            previous = (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift);
+        };
+        window.FormClosed += (_, _) =>
+        {
+            activeSettings = null;
+            if (exiting) return;
             Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
-            if (tray.ContextMenuStrip is { } cancelledMenu) UiMenuRenderer.ApplyTo(cancelledMenu);
-            return;
-        }
+            if (tray.ContextMenuStrip is { } menu) UiMenuRenderer.ApplyTo(menu);
+        };
+        window.Show();
+    }
+
+    private void ApplySettings(bool previousRenderer, (Keys, Keys, bool, bool, bool) previous)
+    {
         if (!hotkey.Configure(settings))
         {
             (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
@@ -590,6 +667,8 @@ internal sealed class WallpaperContext : ApplicationContext
         SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         hotkey.Dispose();
         media.Dispose();
+        activeSettings?.Close();
+        debugWindow?.Close();
         currentTrack?.Artwork?.Dispose();
         WindowsWallpaper.Restore();
         foreach (var f in forms) { f.Close(); f.Dispose(); }

@@ -7,7 +7,9 @@ internal readonly record struct PreviewOptions(VisualizerMode Mode, float CoverS
     float Margin, float Strength, float Sensitivity, float Thickness, float CircleBarHeight, float BottomBarHeight, int Layers, bool Tunnel,
     bool TrackInfo, float Blur, Color Accent, ContrastMode Contrast, IdleMode IdleMode,
     bool PreviewIdle, string? IdlePath, InterfaceTheme Theme, IdleClockStyle ClockStyle,
-    BarAppearance CircleAppearance = default, BarAppearance BottomAppearance = default, float BottomWidth = .52f);
+    BarAppearance CircleAppearance = default, BarAppearance BottomAppearance = default, float BottomWidth = .52f,
+    float CaptionOpacity = .65f, BarGradient Gradient = BarGradient.Cover, float GradientStrength = 1,
+    bool CaptionTextShadow = false);
 
 // Uses the same scene geometry as the wallpaper. The spectrum is deliberately simulated.
 internal sealed class SettingsPreview : Control
@@ -16,7 +18,7 @@ internal sealed class SettingsPreview : Control
     private readonly Image artwork;
     private readonly bool sampleArtwork;
     private readonly float[] spectrum = new float[64];
-    private readonly Bitmap caption = TrackCaption.Create("Vista previa", "EQ Visualizer")!;
+    private Bitmap caption = TrackCaption.Create("Vista previa", "EQ Visualizer")!;
     private Bitmap? clockCaption;
     private IdleClockStyle cachedClockStyle = (IdleClockStyle)(-1);
     private Color cachedClockAccent;
@@ -47,6 +49,12 @@ internal sealed class SettingsPreview : Control
 
     public void SetOptions(PreviewOptions value)
     {
+        if (options.CaptionOpacity != value.CaptionOpacity || options.CaptionTextShadow != value.CaptionTextShadow)
+        {
+            var updatedCaption = TrackCaption.Create("Vista previa", "EQ Visualizer", value.CaptionOpacity, value.CaptionTextShadow)!;
+            caption.Dispose();
+            caption = updatedCaption;
+        }
         if (cachedIdlePath != value.IdlePath)
         {
             idleArtwork?.Dispose(); idleArtwork = LoadImage(value.IdlePath); cachedIdlePath = value.IdlePath;
@@ -112,7 +120,7 @@ internal sealed class SettingsPreview : Control
                 options.CoverSize, options.Strength, options.Sensitivity, options.Tunnel,
                 options.Mode.HasCircle(), options.Mode.HasBottom(), bottom, options.Layers,
                 primary, secondary, options.Thickness, options.TrackInfo, options.CircleBarHeight, options.BottomBarHeight,
-                 options.CircleAppearance, options.BottomAppearance, options.BottomWidth), spectrum, shades);
+                 options.CircleAppearance, options.BottomAppearance, options.BottomWidth, options.Gradient, options.GradientStrength), spectrum, shades);
         }
         DrawScene(g, canvas, selectedArtwork);
         g.ResetClip();

@@ -9,6 +9,18 @@ internal static class SmokeTest
         void Step(string text) => File.AppendAllText(Path.Combine(directory, "smoke-progress.txt"), text + Environment.NewLine);
         try
         {
+            using (var debug = new DebugForm([], new Settings { Fps = 45 }))
+            {
+                debug.Show();
+                var deadline = System.Diagnostics.Stopwatch.StartNew();
+                var readout = debug.Controls.OfType<Panel>().SelectMany(panel => panel.Controls.OfType<Label>())
+                    .Single(label => label.AutoSize);
+                while (!readout.Text.Contains("CPU de EQ") && deadline.ElapsedMilliseconds < 5000)
+                    PumpAnimations();
+                if (!readout.Text.Contains("45 FPS") || !readout.Text.Contains("RAM residente"))
+                    throw new InvalidOperationException("Debug did not refresh CPU, memory and configured FPS.");
+                debug.Close();
+            }
             Step("Creating test window");
             using var window = new Form { ClientSize = new Size(960, 540), ShowInTaskbar = false, FormBorderStyle = FormBorderStyle.None };
             _ = window.Handle;
@@ -74,7 +86,10 @@ internal static class SmokeTest
             using (var wallpaper = new WallpaperForm(Screen.PrimaryScreen!, softwareOptions, audio))
             {
                 wallpaper.SetNowPlaying(cover, false, "Demo track", "EQ Visualizer");
-                using var windowsImage = wallpaper.CreateWindowsWallpaper()
+                var pendingImage = wallpaper.CreateWindowsWallpaperAsync();
+                // A new session may arrive while the previous static frame renders.
+                wallpaper.SetNowPlaying(null, false, hasSession: false);
+                using var windowsImage = pendingImage.GetAwaiter().GetResult()
                     ?? throw new InvalidOperationException("The Windows wallpaper image was not rendered.");
                 int x = (int)(windowsImage.Width * softwareOptions.PositionX);
                 int y = (int)(windowsImage.Height * softwareOptions.PositionY);
@@ -158,8 +173,14 @@ internal static class SmokeTest
                 settings.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
                 screenshot.Save(Path.Combine(directory, $"settings-{i}.png"), System.Drawing.Imaging.ImageFormat.Png);
             }
-            settings.DialogResult = DialogResult.OK; settings.Close();
+            int saves = 0;
+            settings.ChangesSaved += (_, _) => saves++;
+            settings.AcceptButton!.PerformClick();
+            settings.AcceptButton.PerformClick();
+            if (!settings.Visible || saves != 2)
+                throw new InvalidOperationException("Settings must stay open and apply each save.");
             if (System.Text.Json.JsonSerializer.Serialize(values) != before) throw new InvalidOperationException("Settings changed without an edit.");
+            settings.Close();
             Application.SetColorMode(SystemColorMode.Classic);
             Ui.ApplyTheme(InterfaceTheme.Pearl, 0);
             using (var light = new SettingsForm(new Settings { InterfaceTheme = InterfaceTheme.Pearl }))
@@ -168,7 +189,9 @@ internal static class SmokeTest
                 using var lightImage = new Bitmap(light.Width, light.Height);
                 light.DrawToBitmap(lightImage, new Rectangle(Point.Empty, lightImage.Size));
                 lightImage.Save(Path.Combine(directory, "settings-light.png"), System.Drawing.Imaging.ImageFormat.Png);
-                light.Close();
+                light.CancelButton!.PerformClick();
+                if (light.Visible || light.DialogResult != DialogResult.Cancel)
+                    throw new InvalidOperationException("Cancelling modeless Settings did not close the window.");
             }
             Application.SetColorMode(SystemColorMode.Dark);
             Ui.ApplyTheme(InterfaceTheme.Carbon, 0);

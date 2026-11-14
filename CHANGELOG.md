@@ -4,6 +4,29 @@
 >
 > **Estado actual:** híbrido V2+V3 en validación (2026-11-12). Este documento no equivale a una certificación de funcionamiento en una PC real.
 
+## 2026-11-13 — Correcciones locales de transiciones y Ajustes
+
+- El menú Debug de la bandeja muestra FPS de presentación, estado y renderizador por monitor, además de CPU y RAM del proceso. Las muestras se actualizan cada segundo mientras el panel está abierto.
+
+- Se reutilizan direcciones de barras circulares y vértices compartidos al construir la escena. La comparación local produjo los mismos vértices con y sin túnel. CoreChecks y la prueba x64 con Direct3D por hardware pasaron.
+
+- Ajustes usa el icono asociado al ejecutable y EQ registra una identidad estable para la barra de tareas.
+- Portada incluye la opacidad del fondo del recuadro de título y artista y una sombra opcional para el texto. Audio incluye cuatro modos de degradado y un control de intensidad para ambos estilos de barras. Los controles se reflejan en la vista previa.
+
+- Seguimiento del rebote de portada: durante los cambios de canción con EQ enlazado a Explorer, se actualiza la superficie animada y se conserva el fondo estático de respaldo. Si se pierde el enlace con Explorer, se genera un respaldo de la canción activa.
+- Guardar cambios aplica la configuración y mantiene Ajustes abierto. Cancelar descarta las ediciones posteriores al último guardado.
+
+- Base comprobada y respaldada antes de editar: `43aae9c`, rama `patch/v2-v3-win11-x64-20261111`.
+- Reproducción: Spotify emitió dos eventos de metadatos de Deutschland en 80 ms. El fondo estático se escribió aproximadamente cuatro segundos después. La causa completa del salto visual requiere validación interactiva.
+- Metadatos: las notificaciones con el mismo título, artista y contenido de portada conservan la escena existente. Un cambio real de portada continúa actualizándola. Los estados transitorios Changing y Opened conservan el último estado de reproducción confirmado.
+- Fondo estático: renderizado de una copia independiente en segundo plano, descarte de resultados atrasados y restauración asíncrona durante la reproducción. Al salir se espera la restauración. Tras aplicar un fondo se solicita repintar las superficies y revisar su posición bajo los iconos.
+- Ajustes: apertura como ventana independiente, con una sola instancia y cierre explícito al guardar o cancelar. Se evita el bucle modal que deshabilita otras ventanas del proceso.
+- Dibujo: corregidos los rectángulos de tamaño cero o negativo y el radio cero. Una prueba reprodujo ArgumentException en GraphicsPath.AddArc antes de la corrección.
+- Regresiones: dimensiones mínimas, iconos nativos pequeño y grande, metadatos duplicados, estados transitorios, restauración pendiente supersedida y renderizado estático mientras se reemplaza la escena.
+- Verificación local: CoreChecks y WindowsReview aprobados, incluidos todos los temas, secciones y regresiones nuevas. Publicación Windows x64 correcta. Smoke test del ejecutable publicado aprobado con Direct3D por hardware, GDI+, blur, bienvenida, maximizar/minimizar/restaurar y guardar/cancelar Ajustes.
+- Prueba real: compilación corregida ejecutándose. Cambio observado a Ich will: un único cambio de archivo aproximadamente 400 ms después del primer registro del título. WindowFromPoint devolvió SysListView32 durante esa observación. Cancelar cerró Ajustes por su ruta real.
+- Aceptación pendiente: salto visual completo entre pistas, clics del escritorio durante las transiciones, presentación real del icono en la barra de tareas, RTSS y audio real con distintas fuentes.
+
 ## 2026-11-11 — Híbrido V2 + V3, revisión final
 
 - **Rama:** `patch/v2-v3-win11-x64-20261111` (sin fusión con `main`).
