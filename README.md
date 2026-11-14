@@ -1,6 +1,6 @@
 <div align="center">
 
-# EQ Visualizer
+# EQ Visualizer 🎶
 
 ### Tu música. Tu portada. Un escritorio con vida.
 
@@ -14,7 +14,7 @@
 
 <p align="center"><sub>Ilustración conceptual. La apariencia del fondo se adapta a la portada y a la paleta de la canción activa.</sub></p>
 
-## Un escritorio que acompaña tu música
+## ✨️Un escritorio que acompaña tu música✨️
 
 EQ Visualizer transforma el fondo de Windows en una escena musical con portada, título, artista y barras que reaccionan al sonido. Los colores de cada canción dan forma al ambiente, con desenfoque, profundidad y movimiento configurables.
 
@@ -22,7 +22,7 @@ Su motor de escritorio integra la escena detrás de los iconos de Windows. Desde
 
 > **Beta pública 1.0.0 (Windows 11 x64):** descarga el [EXE](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.exe) o el [ZIP portátil](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.zip). También están disponibles las [notas de la versión](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/EQ-VisualizerV1) y las [sumas SHA-256](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/SHA256SUMS.txt). Es una beta: consulta los requisitos y la compatibilidad antes de utilizarla; todavía no es una versión estable certificada.
 
-## Características
+## 🎛 Características
 
 - **Tu música en primer plano.** Portada, título y artista a partir de las sesiones multimedia compatibles de Windows, como las de Spotify o YouTube en un navegador que publique esa información.
 - **Dos estilos de visualizador.** Barras circulares alrededor de la portada, franja inferior o ambos estilos a la vez.
@@ -33,7 +33,7 @@ Su motor de escritorio integra la escena detrás de los iconos de Windows. Desde
 - **Rendimiento configurable.** Límite de FPS, escala interna y motor Direct3D 11 con alternativa GDI+ de compatibilidad.
 - **Diagnóstico en tiempo real.** El panel Debug muestra FPS, estado y motor por monitor, junto con el uso de CPU y memoria del proceso.
 
-## Personalización
+## 🖥Personalización
 
 Cada estilo de barras tiene controles independientes para ajustar la composición.
 
@@ -50,7 +50,7 @@ Cada estilo de barras tiene controles independientes para ajustar la composició
 
 Los deslizadores permiten afinar los valores y comprobar la composición en una vista previa. **Guardar cambios** aplica los ajustes y mantiene la ventana abierta para continuar personalizando. La vista previa utiliza una señal simulada; el fondo utiliza la fuente de audio seleccionada.
 
-## Requisitos
+## ✅️Requisitos
 
 - **Windows 11 x64.** Es la única plataforma de soporte de esta versión.
 - Una salida de audio disponible para el análisis del sonido.
@@ -60,7 +60,7 @@ El ejecutable autocontenido incluye el entorno .NET necesario. No requiere insta
 
 Los detalles sobre aplicaciones compatibles, captura de audio y limitaciones están en [Compatibilidad](COMPATIBILITY.md).
 
-## Primeros pasos
+## ➡️Primeros pasos
 
 1. Ejecuta EQ Visualizer desde la carpeta donde se encuentre la distribución portátil.
 2. En **Bienvenida**, elige visualizador circular, franja inferior o ambos.
@@ -70,7 +70,7 @@ Los detalles sobre aplicaciones compatibles, captura de audio y limitaciones est
 
 El menú de bandeja reúne los controles del visualizador, la selección de audio y el panel **Debug**. La opción **Salir** cierra EQ y restaura el fondo anterior de Windows.
 
-## Audio y reproducción
+## 🔊Audio y reproducción
 
 La información de la canción y el sonido que mueve las barras se seleccionan por separado:
 
@@ -84,13 +84,13 @@ El modo automático de reproductor elige una sesión musical disponible. La capt
 
 La información disponible depende de cada aplicación: si una sesión no publica portada o artista, EQ solo puede mostrar los datos que Windows proporciona.
 
-## Rendimiento
+## 📄Rendimiento
 
 EQ incluye controles de FPS y resolución interna para adaptar el renderizado al equipo. La animación puede pausarse en los monitores cubiertos por una ventana maximizada o a pantalla completa, sin detener la música.
 
 Direct3D 11 es el motor principal. GDI+ ofrece una alternativa de compatibilidad que utiliza CPU; su consumo depende de la resolución y del límite de FPS. El panel **Debug** permite observar el rendimiento mientras se ajusta la configuración.
 
-## Privacidad
+## 📑Privacidad
 
 El análisis de audio se realiza localmente. EQ no graba canciones, no transmite audio y no guarda historial musical. Las preferencias se almacenan en el equipo, sin conservar títulos, artistas, portadas ni muestras de audio en el archivo de ajustes.
 
