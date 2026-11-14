@@ -127,6 +127,9 @@ internal sealed class WallpaperContext : ApplicationContext
     private readonly ToolStripMenuItem sourceMenu = new("Reproductor");
     private readonly System.Windows.Forms.Timer recoveryTimer = new() { Interval = 500 };
     private readonly System.Windows.Forms.Timer pauseTimer = new() { Interval = 600 };
+    // Coalesce display events on UI thread before rebuilding surfaces.
+    private readonly System.Windows.Forms.Timer displayTimer = new() { Interval = 400 };
+    private readonly SynchronizationContext ui;
     private NowPlayingChangedEventArgs? currentTrack;
     private PlaybackActivity activity;
     private bool showingTrack;
@@ -144,6 +147,7 @@ internal sealed class WallpaperContext : ApplicationContext
     public WallpaperContext(EventWaitHandle openSettings)
     {
         this.openSettings = openSettings;
+        ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         try
         {
             string json = File.ReadAllText(settingsPath);
@@ -154,7 +158,13 @@ internal sealed class WallpaperContext : ApplicationContext
             if (!document.RootElement.TryGetProperty(nameof(Settings.BottomBarThickness), out _))
                 settings.BottomBarThickness = settings.BarThickness;
         }
-        catch { settings = new(); }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { settings = new(); }
+        catch
+        {
+            // Preserve the original malformed settings instead of overwriting them silently.
+            try { if (!File.Exists(settingsPath + ".bad")) File.Copy(settingsPath, settingsPath + ".bad"); } catch { }
+            settings = new();
+        }
         settings.CaptionOpacity = Math.Clamp(settings.CaptionOpacity, 0, 1);
         settings.GradientStrength = Math.Clamp(settings.GradientStrength, 0, 1);
         if (!Enum.IsDefined(settings.Gradient)) settings.Gradient = BarGradient.Cover;
@@ -183,6 +193,8 @@ internal sealed class WallpaperContext : ApplicationContext
         if (!Enum.IsDefined(settings.NoSessionMode)) settings.NoSessionMode = IdleMode.Off;
         if (!Enum.IsDefined(settings.ClockStyle)) settings.ClockStyle = IdleClockStyle.Digital;
         if (!Enum.IsDefined(settings.InterfaceTheme)) settings.InterfaceTheme = InterfaceTheme.Carbon;
+        if (!HotkeyWindow.IsAllowedKey(settings.HotkeyKey)) settings.HotkeyKey = Keys.V;
+        if (!HotkeyWindow.IsAllowedKey(settings.EffectsHotkeyKey)) settings.EffectsHotkeyKey = Keys.E;
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
         var menu = new ContextMenuStrip { Renderer = new UiMenuRenderer(), BackColor = Ui.Surface, ForeColor = Ui.Text, Font = Ui.Font(10), ShowImageMargin = false, Padding = new Padding(6) };
         menu.Items.Add("Activar / desactivar", null, (_, _) => Toggle());
@@ -231,7 +243,7 @@ internal sealed class WallpaperContext : ApplicationContext
             UpdateWindowsWallpaper();
         };
         if (!hotkey.Configure(settings))
-            tray.ShowBalloonTip(4000, "EQ Visualizer", "El atajo Ctrl + Alt + V ya está en uso.", ToolTipIcon.Warning);
+            tray.ShowBalloonTip(4000, "EQ Visualizer", hotkey.Conflict ?? "No se pudieron registrar los atajos.", ToolTipIcon.Warning);
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
@@ -242,6 +254,7 @@ internal sealed class WallpaperContext : ApplicationContext
         };
         recoveryTimer.Start();
         pauseTimer.Tick += (_, _) => { pauseTimer.Stop(); RefreshMediaPresentation(); };
+        displayTimer.Tick += (_, _) => { displayTimer.Stop(); RebuildForDisplayChange(); };
         StartupFlow.Initialize(!settings.HasCompletedWelcome, ShowWelcomeIfNeeded, CreateWallpapers);
         media.Changed += OnMediaChanged;
         media.PlaybackChanged += (_, e) =>
@@ -270,15 +283,23 @@ internal sealed class WallpaperContext : ApplicationContext
     }
     private void OnDisplayChanged(object? sender, EventArgs e)
     {
-        if (exiting || forms.Count == 0) return;
-        forms[0].BeginInvoke(() =>
+        if (exiting) return;
+        // SystemEvents may raise notifications from another thread and forms[0] may be disposed.
+        ui.Post(_ =>
         {
             if (exiting) return;
-            foreach (var form in forms) form.Dispose();
-            forms.Clear();
-            CreateWallpapers();
-            RefreshMediaPresentation(trackChanged: true);
-        });
+            displayTimer.Stop();
+            displayTimer.Start();
+        }, null);
+    }
+
+    private void RebuildForDisplayChange()
+    {
+        if (exiting || forms.Count == 0) return;
+        foreach (var form in forms) form.Dispose();
+        forms.Clear();
+        CreateWallpapers();
+        RefreshMediaPresentation(trackChanged: true);
     }
     private void RefreshDevices()
     {
@@ -599,7 +620,7 @@ internal sealed class WallpaperContext : ApplicationContext
         {
             (settings.HotkeyKey, settings.EffectsHotkeyKey, settings.HotkeyControl, settings.HotkeyAlt, settings.HotkeyShift) = previous;
             hotkey.Configure(settings);
-            tray.ShowBalloonTip(4000, "EQ Visualizer", "Atajo ocupado; se conservaron los atajos anteriores.", ToolTipIcon.Warning);
+            tray.ShowBalloonTip(4000, "EQ Visualizer", (hotkey.Conflict ?? "Atajo ocupado.") + " Se conservaron los atajos anteriores.", ToolTipIcon.Warning);
         }
         Save();
         Ui.ApplyTheme(settings.InterfaceTheme, settings.InterfaceAccent);
@@ -670,6 +691,8 @@ internal sealed class WallpaperContext : ApplicationContext
         recoveryTimer.Stop();
         recoveryTimer.Dispose();
         pauseTimer.Dispose();
+        displayTimer.Stop();
+        displayTimer.Dispose();
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
