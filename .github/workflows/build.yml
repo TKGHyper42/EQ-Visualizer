@@ -84,14 +84,14 @@ jobs:
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
 
       # Do not consume artifact storage for ordinary development commits.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && contains(github.event.head_commit.message, '[private-build]'))
         with:
           name: EQVisualizer-${{ matrix.arch }}
           path: out/${{ matrix.arch }}/
           retention-days: 1
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'workflow_dispatch'
         with:
           name: checks-${{ matrix.arch }}
