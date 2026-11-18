@@ -2,6 +2,10 @@ EQ Visualizer preserves its MIT license in LICENSE.
 Application code, scene geometry and HLSL shaders are original. No code, images,
 shaders or internal resources from other wallpaper applications are included.
 Music and artwork supplied at runtime by Windows are not redistributed assets.
+During use, the application may create a local composite PNG containing cover
+art and track text to set the Windows wallpaper; this file is not included in
+official release packages. See PRIVACY.md and LEGAL.md. The license of EQ
+Visualizer does not grant rights to redistribute third-party music or artwork.
 
 Pinned dependencies (managed assemblies support x64 and x86):
 
