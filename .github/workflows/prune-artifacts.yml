@@ -1,16 +1,22 @@
 name: Prune old EQ artifacts
 on:
-  push:
-    branches: [patch/v2-v3-win11-x64-20261111]
-    paths: ['.github/workflows/prune-artifacts.yml']
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Escribe PRUNE para autorizar la eliminación de artefactos antiguos (no releases)'
+        required: true
+        type: string
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 jobs:
   prune:
+    if: github.repository == 'TKGHyper42/EQ-Visualizer' && github.actor == 'TKGHyper42' && inputs.confirm == 'PRUNE'
+    permissions:
+      contents: read
+      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 7
     steps:

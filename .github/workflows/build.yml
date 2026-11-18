@@ -2,7 +2,15 @@ name: Windows build
 on:
   push:
     branches: [main, codex/bootstrap-eq-visualizer, patch/v2-v3-win11-x64-20261111, release/v1.0.1-beta.1]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      publish_prerelease:
+        description: 'Publicar una nueva prerelease SOLO tras validación y aprobación explícita'
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -14,7 +22,7 @@ env:
 jobs:
   build:
     permissions:
-      contents: write # Required for an explicitly requested private draft download.
+      contents: read
     runs-on: windows-latest
     timeout-minutes: 15
     strategy:
@@ -49,7 +57,7 @@ jobs:
         run: |
           $destination = "out/${{ matrix.arch }}"
           if (Test-Path "$destination/EQVisualizer.pdb") { throw "Debug symbols must not be packaged" }
-          Copy-Item LICENSE, README.md, COMPATIBILITY.md, THIRD-PARTY-NOTICES.txt $destination
+          Copy-Item LICENSE, README.md, COMPATIBILITY.md, THIRD-PARTY-NOTICES.txt, PRIVACY.md, LEGAL.md, SECURITY.md $destination
           $licenseDirectory = New-Item -ItemType Directory -Force "$destination/licenses"
           $packages = Join-Path $env:USERPROFILE ".nuget/packages"
           $assets = Get-Content "src/EQVisualizer/obj/project.assets.json" -Raw | ConvertFrom-Json
@@ -75,40 +83,6 @@ jobs:
           $hash = (Get-FileHash "$destination/EQVisualizer.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  EQVisualizer.exe" | Set-Content "$destination/SHA256.txt"
 
-      - name: Publish prerelease only after all Windows checks pass
-        if: github.ref == 'refs/heads/release/v1.0.1-beta.1' && github.event_name == 'push'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $tag = 'v1.0.1-beta.1'
-          $repo = '${{ github.repository }}'
-          if ($repo -ne 'TKGHyper42/EQ-Visualizer') { throw "Unexpected release repository" }
-          gh release view $tag --repo $repo > $null 2> $null
-          if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists; refusing to overwrite assets" }
-          New-Item -ItemType Directory -Force 'dist' | Out-Null
-          Copy-Item 'out/${{ matrix.arch }}/EQVisualizer.exe' 'dist/EQVisualizer-win-x64.exe'
-          Compress-Archive -Path 'out/${{ matrix.arch }}/*' -DestinationPath 'dist/EQVisualizer-win-x64.zip'
-          @('EQVisualizer-win-x64.exe', 'EQVisualizer-win-x64.zip') | ForEach-Object {
-            $digest = (Get-FileHash -Path ("dist/" + $_) -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$digest  $_"
-          } | Set-Content -Path 'dist/SHA256SUMS.txt' -Encoding ascii
-          $notes = @(
-            'Prerelease experimental de mantenimiento para Windows 11 x64.',
-            '',
-            'Cambios respecto a la beta pública: copia de seguridad de ajustes no legibles, agrupación de eventos de pantalla y validación de atajos globales.',
-            '',
-            'No incluye cambios en FFT, captura de audio ni recuperación de Direct3D.',
-            'Compilada tras CoreChecks, WindowsReview y smoke test del ejecutable en GitHub Actions.',
-            'Las pruebas con audio real, Explorador de Windows y varios monitores siguen pendientes. No sustituye automáticamente a la beta pública.',
-            '',
-            'Comprueba los archivos usando SHA256SUMS.txt antes de ejecutarlos.'
-          ) -join "`n"
-          gh release create $tag 'dist/EQVisualizer-win-x64.exe' 'dist/EQVisualizer-win-x64.zip' 'dist/SHA256SUMS.txt' --repo $repo --target $env:GITHUB_SHA --title 'EQ Visualizer v1.0.1-beta.1 (prerelease)' --notes $notes --prerelease
-          if ($LASTEXITCODE -ne 0) { throw "Failed to publish prerelease" }
-          gh release view $tag --repo $repo --json tagName,isPrerelease,isDraft,url,assets
-          if ($LASTEXITCODE -ne 0) { throw "Failed to verify published prerelease" }
       # Do not consume artifact storage for ordinary development commits.
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && contains(github.event.head_commit.message, '[private-build]'))
@@ -124,78 +98,52 @@ jobs:
           path: TestResults/${{ matrix.arch }}/
           retention-days: 1
           if-no-files-found: warn
-      - name: Deliver EQ preview as a private draft (explicit only)
-        if: (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deliver-eq]')) && github.event.repository.private
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$(gh api repos/${{ github.repository }} --jq .private)" = "true"
-          test -f "out/${{ matrix.arch }}/EQVisualizer.exe"
-          (cd "out/${{ matrix.arch }}" && tr -d '\r' < SHA256.txt | sha256sum --check --strict)
-          tag="eq-private-preview"
-          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            test "$(gh release view "$tag" --repo "${{ github.repository }}" --json isDraft --jq .isDraft)" = "true"
-            gh release edit "$tag" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --draft --prerelease
-          else
-            gh release create "$tag" --repo "${{ github.repository }}" --target "$GITHUB_SHA" \
-              --title "EQ Visualizer - private preview" --notes "Internal Windows build. Not a public release." \
-              --draft --prerelease
-          fi
-          gh release upload "$tag" --repo "${{ github.repository }}" --clobber \
-            "out/${{ matrix.arch }}/EQVisualizer.exe" "out/${{ matrix.arch }}/SHA256.txt"
-          gh release view "$tag" --repo "${{ github.repository }}" --json isDraft,assets,url
-
-  # Private V2 uploads run only from the tagged main build.
-  private-assets:
+  # Release publication is a separate job with write permission, never a side
+  # effect of a push. Only an explicit manual dispatch on the release branch
+  # can attempt publication, and existing release tags are never overwritten.
+  publish-prerelease:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/bootstrap-eq-visualizer' && github.repository == 'TKGHyper42/EQ-Visualizer' && github.event.repository.private && contains(github.event.head_commit.message, '[private-build]')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_prerelease == true && github.ref == 'refs/heads/release/v1.0.1-beta.1' && github.repository == 'TKGHyper42/EQ-Visualizer'
+    runs-on: windows-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       actions: read
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: EQVisualizer-win-*
-          path: binaries
-      - name: Prepare executable and ZIP downloads
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p downloads
-          for arch in win-x64 win-x86; do
-            test -f "binaries/EQVisualizer-$arch/EQVisualizer.exe"
-            (cd "binaries/EQVisualizer-$arch" && tr -d '\r' < SHA256.txt | sha256sum --check --strict)
-            cp "binaries/EQVisualizer-$arch/EQVisualizer.exe" "downloads/EQVisualizer-$arch.exe"
-            (cd "binaries/EQVisualizer-$arch" && zip -q -r "../../downloads/EQVisualizer-$arch.zip" .)
-          done
-          (cd downloads && sha256sum EQVisualizer-win-x64.exe EQVisualizer-win-x86.exe EQVisualizer-win-x64.zip EQVisualizer-win-x86.zip > SHA256SUMS.txt)
-      - name: Store downloads in an unpublished private release
-        shell: bash
+          name: EQVisualizer-win-x64
+          path: out/win-x64
+      - name: Verify artifact and publish explicitly approved prerelease
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
-          tag="private-build-42803499255"
-          if [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            tag="v2"
-            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = false
-          else
-            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
-            gh release edit "$tag" --repo TKGHyper42/EQ-Visualizer --target "$GITHUB_SHA" --draft --prerelease
-          fi
-          gh release upload "$tag" --repo TKGHyper42/EQ-Visualizer --clobber \
-            downloads/EQVisualizer-win-x64.exe downloads/EQVisualizer-win-x86.exe \
-            downloads/EQVisualizer-win-x64.zip downloads/EQVisualizer-win-x86.zip downloads/SHA256SUMS.txt
-          gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft,isPrerelease,url,tagName,assets
-          test "$(gh api repos/TKGHyper42/EQ-Visualizer --jq '.private')" = true
-          if [[ "$tag" == "v2" ]]; then
-            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = false
-          else
-            test "$(gh release view "$tag" --repo TKGHyper42/EQ-Visualizer --json isDraft --jq '.isDraft')" = true
-          fi
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v1.0.1-beta.1'
+          $repo = '${{ github.repository }}'
+          if ($repo -ne 'TKGHyper42/EQ-Visualizer') { throw 'Unexpected release repository' }
+          $expected = (Get-Content 'out/win-x64/SHA256.txt' -Raw).Trim().Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
+          $actual = (Get-FileHash 'out/win-x64/EQVisualizer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual) { throw 'Artifact checksum mismatch' }
+          gh release view $tag --repo $repo > $null 2> $null
+          if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists; refusing to overwrite assets" }
+          New-Item -ItemType Directory -Force 'dist' | Out-Null
+          Copy-Item 'out/win-x64/EQVisualizer.exe' 'dist/EQVisualizer-win-x64.exe'
+          Compress-Archive -Path 'out/win-x64/*' -DestinationPath 'dist/EQVisualizer-win-x64.zip'
+          @('EQVisualizer-win-x64.exe', 'EQVisualizer-win-x64.zip') | ForEach-Object {
+            $digest = (Get-FileHash -Path ("dist/" + $_) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$digest  $_"
+          } | Set-Content -Path 'dist/SHA256SUMS.txt' -Encoding ascii
+          $notes = @(
+            'Prerelease experimental de mantenimiento para Windows 11 x64.',
+            '',
+            'Compilada tras CoreChecks, WindowsReview y smoke test del ejecutable en GitHub Actions.',
+            'Las pruebas con audio real, Explorador de Windows y varios monitores siguen pendientes.',
+            'No sustituye automáticamente a la beta pública.',
+            '',
+            'Comprueba los archivos usando SHA256SUMS.txt antes de ejecutarlos.'
+          ) -join "`n"
+          gh release create $tag 'dist/EQVisualizer-win-x64.exe' 'dist/EQVisualizer-win-x64.zip' 'dist/SHA256SUMS.txt' --repo $repo --target $env:GITHUB_SHA --title 'EQ Visualizer v1.0.1-beta.1 (prerelease)' --notes $notes --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to publish prerelease' }
 

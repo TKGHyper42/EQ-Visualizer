@@ -22,6 +22,8 @@ La composición temporal `music-wallpaper.png` puede contener material gráfico 
 
 Los recursos gráficos y otros materiales que se agreguen al repositorio deben tener una procedencia verificable y permisos compatibles con su redistribución. Las imágenes conceptuales del README deben revisarse por separado si se reutilizan fuera de este proyecto; su presencia aquí no acredita automáticamente derechos sobre todos sus elementos.
 
+Según la declaración del responsable del proyecto, las ilustraciones promocionales `assets/eq-visualizer-hero.png` y `assets/eq-visualizer-spectrum.png`, así como la identidad gráfica de la aplicación, se crearon con asistencia de ChatGPT. La revisión visual de las dos ilustraciones no detectó logotipos ajenos ni portadas musicales reconocibles. **Este dato de procedencia no constituye una garantía de exclusividad, originalidad absoluta o protección por derechos de autor en todas las jurisdicciones**. Se recomienda conservar los archivos originales y la evidencia de generación, y comprobar por separado cualquier recurso nuevo o captura de pantalla con contenido musical real.
+
 ## Marcas y servicios mencionados
 
 EQ Visualizer es un proyecto independiente. **No está afiliado, patrocinado ni respaldado por Microsoft, Spotify, YouTube, Google ni sus respectivos titulares de marcas.** Las referencias a Windows, Spotify y otros servicios identifican únicamente plataformas y aplicaciones compatibles. Sus nombres y marcas pertenecen a sus respectivos titulares. EQ no requiere autenticación en la API de Spotify ni representa un cliente oficial de esos servicios.

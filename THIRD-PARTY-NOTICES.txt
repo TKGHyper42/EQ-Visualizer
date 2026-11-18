@@ -1,4 +1,10 @@
 EQ Visualizer preserves its MIT license in LICENSE.
+For downloadable distributions, use the ZIP package when possible: it
+includes LICENSE, this file and the additional licenses/ directory. A
+standalone EXE download does not provide those texts as separate adjacent
+documents; consult the accompanying repository notices before reuse or
+redistribution. Any further redistribution must meet the applicable notice
+and license obligations, regardless of the download format.
 Application code, scene geometry and HLSL shaders are original. No code, images,
 shaders or internal resources from other wallpaper applications are included.
 Music and artwork supplied at runtime by Windows are not redistributed assets.
