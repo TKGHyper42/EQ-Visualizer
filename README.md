@@ -6,7 +6,7 @@
 
 **Wallpaper musical para Windows 11 x64**
 
-[Características](#características) · [Personalización](#personalización) · [Primeros pasos](#primeros-pasos) · [Compatibilidad](COMPATIBILITY.md)
+[Características](#características) · [Personalización](#personalización) · [Primeros pasos](#primeros-pasos) · [Compatibilidad](COMPATIBILITY.md) · [Privacidad](PRIVACY.md) · [Seguridad](SECURITY.md)
 
 </div>
 
@@ -20,7 +20,11 @@ EQ Visualizer transforma el fondo de Windows en una escena musical con portada, 
 
 Su motor de escritorio integra la escena detrás de los iconos de Windows. Desde una composición discreta alrededor de la portada hasta una franja que recorre la pantalla, EQ permite adaptar el visualizador al espacio de trabajo.
 
-> **Beta pública 1.0.0 (Windows 11 x64):** descarga el [EXE](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.exe) o el [ZIP portátil](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.zip). También están disponibles las [notas de la versión](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/EQ-VisualizerV1) y las [sumas SHA-256](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/SHA256SUMS.txt). Es una beta: consulta los requisitos y la compatibilidad antes de utilizarla; todavía no es una versión estable certificada.
+> **Beta pública 1.0.0 (Windows 11 x64):** se recomienda descargar el [ZIP portátil](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.zip), que acompaña al ejecutable con la guía y los avisos de licencias. También está disponible el [EXE independiente](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/EQVisualizer-win-x64.exe); si eliges esa descarga, consulta por separado [LICENSE](LICENSE), [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) y [LEGAL.md](LEGAL.md). Revisa las [notas de la versión](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/EQ-VisualizerV1) y las [sumas SHA-256](https://github.com/TKGHyper42/EQ-Visualizer/releases/download/EQ-VisualizerV1/SHA256SUMS.txt). Es una beta, no una versión estable certificada.
+
+> **Advertencia de nomenclatura (18 de noviembre de 2026):** la [release con tag `v1.0.1-beta.1`](https://github.com/TKGHyper42/EQ-Visualizer/releases/tag/v1.0.1-beta.1) aparece titulada «EQ Visualizer v1.1 (Stable)» en GitHub, pero el código fuente conserva la versión `1.0.1-beta.1` y aún hay pruebas de funcionamiento real pendientes. Hasta resolver esa discrepancia, **no debe interpretarse la etiqueta «Stable» como una certificación de estabilidad**. Este aviso no modifica las releases ya publicadas.
+
+La versión beta se ofrece **tal cual, sin garantía**, conforme a la [licencia MIT](LICENSE) y a los derechos que resulten irrenunciables por ley. Las sumas SHA-256 permiten comparar archivos, pero no reemplazan una firma de código. Descarga únicamente desde las releases oficiales. **El ZIP es la distribución recomendada porque incluye avisos de terceros y licencias que el EXE aislado no entrega como documentos separados.**
 
 ## 🎛 Características
 
@@ -90,13 +94,24 @@ EQ incluye controles de FPS y resolución interna para adaptar el renderizado al
 
 Direct3D 11 es el motor principal. GDI+ ofrece una alternativa de compatibilidad que utiliza CPU; su consumo depende de la resolución y del límite de FPS. El panel **Debug** permite observar el rendimiento mientras se ajusta la configuración.
 
-## 📑Privacidad
+## 📑Privacidad y archivos del sistema
 
-El análisis de audio se realiza localmente. EQ no graba canciones, no transmite audio y no guarda historial musical. Las preferencias se almacenan en el equipo, sin conservar títulos, artistas, portadas ni muestras de audio en el archivo de ajustes.
+El análisis de audio se realiza localmente: EQ no graba canciones en archivos de audio, no transmite audio y no crea un historial musical. Tampoco incorpora analítica ni telemetría enviadas a servidores propios. **Sin embargo, sí puede guardar una composición de fondo de Windows con la portada y el texto de la canción** en `%LOCALAPPDATA%\EQVisualizer\music-wallpaper.png`; normalmente se elimina al restaurar el fondo, pero puede permanecer tras un cierre inesperado. El archivo `settings.json` guarda preferencias, identificadores y, si seleccionas una imagen local, su ruta; no contiene un historial de canciones. EQ también conserva la ruta del fondo anterior y puede respaldar ajustes dañados.
+
+EQ cambia temporalmente el fondo de Windows y procura restaurarlo al salir. No necesita privilegios de administrador, no instala inicio automático y solo crea un acceso directo de escritorio si se lo solicitas. Los detalles sobre archivos, conservación, eliminación y contacto están en la [política de privacidad](PRIVACY.md).
+
+## 🔒 Seguridad y avisos legales
+
+- [Política de seguridad](SECURITY.md): informa vulnerabilidades de forma privada; evita publicarlas en issues.
+- [Aviso legal y contenido de terceros](LEGAL.md): derechos sobre música, portadas y marcas; límites de la beta.
+- [Avisos y licencias de dependencias](THIRD-PARTY-NOTICES.txt): componentes de terceros utilizados en la distribución.
+- [Guía para contribuir](CONTRIBUTING.md): procedencia del código, derechos y revisión de aportaciones.
+
+EQ Visualizer es **independiente** y no está afiliado, patrocinado ni respaldado por Microsoft, Spotify, YouTube ni Google. Las referencias a servicios se usan únicamente para describir compatibilidad. Sus marcas y contenidos pertenecen a sus respectivos titulares.
 
 ## Licencia
 
-EQ Visualizer se distribuye bajo la [licencia MIT](LICENSE).
+El código propio de EQ Visualizer se distribuye bajo la [licencia MIT](LICENSE), con sus avisos de copyright y exclusión de garantías. Esta licencia **no otorga derechos sobre música, portadas, imágenes o marcas de terceros**.
 
 <div align="center">
 

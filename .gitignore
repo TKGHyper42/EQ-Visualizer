@@ -3,3 +3,13 @@
 out/
 TestResults/
 *.user
+
+# Local credentials and signing material must never enter the repository.
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+*.publishsettings

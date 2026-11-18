@@ -41,11 +41,11 @@ Las barras usan un degradado con colores dominantes de la portada, realzados par
 - Ambos atajos y sus modificadores se pueden cambiar.
 - **Salir** cierra el wallpaper y restaura la imagen de fondo previa si Windows sigue usando la de EQ.
 
-Los ajustes se guardan en `%LOCALAPPDATA%/EQVisualizer/settings.json`, sin títulos, artistas, portadas ni muestras de audio. El programa no registra inicio automático ni requiere administrador.
+Los ajustes se guardan en `%LOCALAPPDATA%\EQVisualizer\settings.json`, sin títulos, artistas, portadas ni muestras de audio **en ese archivo**. Sí puede guardar el identificador del reproductor, el dispositivo de audio y la ruta completa de una imagen seleccionada. Si falla la lectura de los ajustes, puede conservarse una copia `settings.json.bad`. El programa no registra inicio automático ni requiere administrador.
 
 ## Fondo, iconos y pausas
 
-EQ aplica una imagen con la portada de la canción como fondo de Windows. La imagen se guarda como `music-wallpaper.png` junto a los ajustes y se sustituye cuando cambia la canción. La restauración recupera la imagen anterior. Las presentaciones de diapositivas y los fondos distintos por monitor requieren sus propios ajustes de Windows.
+EQ aplica una imagen con la portada de la canción como fondo de Windows. La imagen se guarda como `music-wallpaper.png` junto a los ajustes, **puede incluir título y artista**, y se sustituye cuando cambia la canción. La restauración recupera la imagen anterior si Windows todavía tiene aplicado el fondo de EQ; normalmente elimina esa imagen, pero podría permanecer tras un fallo o cierre inesperado. La ruta del fondo anterior se conserva en `previous-wallpaper.txt`. Consulta [Privacidad](PRIVACY.md) para conocer la conservación y la limpieza manual. Las presentaciones de diapositivas y los fondos distintos por monitor requieren sus propios ajustes de Windows.
 
 WorkerW permite dibujar las barras detrás de los iconos. Es una integración no documentada por Microsoft y puede cambiar con las versiones del Explorador. El programa comprueba la relación y reintenta al perderla. Si otra ventana maximizada o fullscreen cubre un monitor, EQ pausa la animación de esa pantalla. Al bloquear o suspender la sesión detiene la animación y libera la captura cuando no queda una pantalla activa.
 
